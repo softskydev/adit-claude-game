@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GROUNDS — Coffee Chain Expansion Simulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0d0f;
+    --surface: #111518;
+    --surface2: #181d21;
+    --border: #1f2830;
+    --border-light: #2a3540;
+    --cream: #f0e6d3;
+    --cream-dim: #c4b49a;
+    --espresso: #8b5e3c;
+    --espresso-light: #b07d52;
+    --gold: #c9933a;
+    --gold-dim: #8a6222;
+    --green: #22c55e;
+    --green-dim: #15803d;
+    --red: #ef4444;
+    --red-dim: #991b1b;
+    --blue: #60a5fa;
+    --text: #e8ddd0;
+    --text-dim: #7a8a96;
+    --text-muted: #3d4f5c;
+    --shadow: 0 4px 24px rgba(0,0,0,0.6);
+    --shadow-lg: 0 8px 48px rgba(0,0,0,0.8);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle background grain */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ─── HEADER ─────────────────────────────────────── */
+  #header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,13,15,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.12em;
+    color: var(--cream);
+  }
+  .logo span { color: var(--gold); }
+
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .day-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .day-badge strong {
+    color: var(--cream);
+    font-weight: 500;
+  }
+
+  .speed-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-speed {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    transition: all 0.15s;
+  }
+  .btn-speed:hover, .btn-speed.active {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201,147,58,0.08);
+  }
+
+  /* ─── MAIN LAYOUT ─────────────────────────────────── */
+  #app {
+    position: relative;
+    z-index: 1;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 28px 32px 60px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: auto auto 1fr;
+    gap: 20px;
+  }
+
+  /* ─── KPI STRIP ───────────────────────────────────── */
+  #kpi-strip {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--gold);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .kpi-card:hover::after { opacity: 1; }
+  .kpi-card:hover { border-color: var(--border-light); }
+
+  .kpi-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.45rem;
+    font-weight: 500;
+    color: var(--cream);
+    line-height: 1;
+  }
+  .kpi-value.positive { color: var(--green); }
+  .kpi-value.negative { color: var(--red); }
+  .kpi-value.warning { color: var(--gold); }
+  .kpi-sub {
+    font-size: 0.67rem;
+    color: var(--text-muted);
+    margin-top: 5px;
+    font-family: 'DM Mono', monospace;
+  }
+  .kpi-sub .up { color: var(--green); }
+  .kpi-sub .dn { color: var(--red); }
+
+  /* Branch progress bar */
+  .branch-progress {
+    margin-top: 8px;
+    background: var(--border);
+    border-radius: 2px;
+    height: 3px;
+    overflow: hidden;
+  }
+  .branch-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--espresso), var(--gold));
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* ─── LEFT COLUMN ─────────────────────────────────── */
+  #left-col {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ─── EVENT LOG ───────────────────────────────────── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .panel-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    background: var(--surface2);
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+
+  #log-list {
+    padding: 8px 0;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .log-entry {
+    padding: 7px 20px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    border-left: 2px solid transparent;
+    transition: all 0.2s;
+    animation: fadeSlide 0.3s ease;
+  }
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .log-entry.info { border-left-color: var(--blue); color: var(--text); }
+  .log-entry.success { border-left-color: var(--green); color: #86efac; }
+  .log-entry.warning { border-left-color: var(--gold); color: #fcd34d; }
+  .log-entry.danger { border-left-color: var(--red); color: #fca5a5; }
+
+  .log-day {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    margin-right: 8px;
+  }
+
+  /* ─── P&L CHART ───────────────────────────────────── */
+  #chart-area {
+    padding: 20px;
+  }
+  canvas#pl-chart {
+    width: 100%;
+    height: 160px;
+    display: block;
+  }
+
+  /* ─── UPGRADES ────────────────────────────────────── */
+  #upgrades-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .upgrade-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upgrade-card:hover:not(.purchased):not(.locked) {
+    border-color: var(--gold);
+    background: rgba(201,147,58,0.05);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(201,147,58,0.12);
+  }
+  .upgrade-card.purchased {
+    border-color: var(--green-dim);
+    background: rgba(34,197,94,0.05);
+    opacity: 0.7;
+    cursor: default;
+  }
+  .upgrade-card.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .upgrade-card.purchased::after {
+    content: '✓';
+    position: absolute;
+    top: 10px; right: 12px;
+    font-size: 0.75rem;
+    color: var(--green);
+  }
+
+  .upg-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--cream);
+    margin-bottom: 4px;
+  }
+  .upg-desc {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .upg-cost {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--gold);
+  }
+  .upg-effect {
+    font-size: 0.65rem;
+    color: var(--green);
+    margin-top: 2px;
+  }
+
+  /* ─── RIGHT COLUMN ────────────────────────────────── */
+  #right-col {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ─── EXPANSION PANEL ─────────────────────────────── */
+  #expansion-panel {
+    padding: 20px;
+  }
+
+  .expand-visual {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin: 16px 0;
+  }
+
+  .branch-dot {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: var(--border);
+    border: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+    position: relative;
+    overflow: hidden;
+  }
+  .branch-dot.active {
+    background: linear-gradient(135deg, var(--espresso), var(--gold));
+    border-color: var(--gold);
+    color: var(--cream);
+    font-weight: 700;
+    box-shadow: 0 2px 10px rgba(201,147,58,0.3);
+  }
+  .branch-dot.active::after {
+    content: '☕';
+    font-size: 0.9rem;
+  }
+  .branch-dot:not(.active)::after {
+    content: attr(data-n);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+  }
+
+  .btn-expand {
+    width: 100%;
+    background: linear-gradient(135deg, var(--espresso), var(--gold));
+    border: none;
+    border-radius: 8px;
+    color: var(--cream);
+    padding: 14px 20px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .btn-expand:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(201,147,58,0.35);
+  }
+  .btn-expand:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-expand-cost {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    opacity: 0.85;
+  }
+
+  /* ─── FINANCIALS PANEL ────────────────────────────── */
+  #financials-panel {
+    padding: 20px;
+  }
+
+  .fin-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+  }
+  .fin-row:last-child { border-bottom: none; }
+  .fin-label { color: var(--text-muted); }
+  .fin-val {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .fin-val.pos { color: var(--green); }
+  .fin-val.neg { color: var(--red); }
+  .fin-divider {
+    height: 1px;
+    background: var(--border-light);
+    margin: 4px 0;
+  }
+  .fin-row.total .fin-label {
+    color: var(--cream);
+    font-weight: 700;
+  }
+  .fin-row.total .fin-val {
+    font-size: 0.9rem;
+    color: var(--cream);
+  }
+
+  /* ─── MANUAL CONTROLS ─────────────────────────────── */
+  #controls-panel {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .btn-action {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border-light);
+    color: var(--cream);
+    padding: 11px 16px;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-action:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201,147,58,0.06);
+  }
+  .btn-icon { font-size: 1rem; }
+
+  /* ─── MODAL ───────────────────────────────────────── */
+  #modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  #modal-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    padding: 36px;
+    max-width: 520px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(16px);
+    transition: transform 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+  #modal-overlay.visible #modal {
+    transform: translateY(0);
+  }
+  #modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--espresso), var(--gold), var(--espresso));
+  }
+
+  .modal-eyebrow {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  .modal-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
+    color: var(--cream);
+    line-height: 1.2;
+    margin-bottom: 14px;
+  }
+  .modal-body {
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    line-height: 1.65;
+    margin-bottom: 24px;
+  }
+  .modal-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .modal-option {
+    background: var(--surface2);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-align: left;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.81rem;
+    font-weight: 500;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .modal-option:hover {
+    border-color: var(--gold);
+    background: rgba(201,147,58,0.07);
+    transform: translateX(4px);
+  }
+  .modal-opt-key {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gold);
+    background: rgba(201,147,58,0.12);
+    border: 1px solid var(--gold-dim);
+    padding: 2px 7px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .modal-close-btn {
+    width: 100%;
+    background: var(--espresso);
+    border: none;
+    border-radius: 7px;
+    color: var(--cream);
+    padding: 12px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 12px;
+  }
+  .modal-close-btn:hover {
+    background: var(--gold);
+    transform: translateY(-1px);
+  }
+
+  /* Negative cash warning */
+  .neg-warning {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 7px;
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    color: #fca5a5;
+    margin-top: 10px;
+    display: none;
+    font-family: 'DM Mono', monospace;
+  }
+  .neg-warning.show { display: block; }
+
+  /* ─── SCROLLBAR ───────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+  /* ─── RESPONSIVE ──────────────────────────────────── */
+  @media (max-width: 1100px) {
+    #app {
+      grid-template-columns: 1fr;
+      padding: 16px;
+    }
+    #right-col { grid-column: 1; grid-row: auto; }
+    #kpi-strip { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 640px) {
+    #kpi-strip { grid-template-columns: repeat(2, 1fr); }
+    #upgrades-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="logo">GR<span>○</span>UNDS</div>
+  <div class="header-meta">
+    <div class="day-badge">Quarter <strong id="hdr-quarter">Q1</strong> · Day <strong id="hdr-day">1</strong></div>
+    <div class="speed-controls">
+      <button class="btn-speed" onclick="setSpeed(0)">⏸</button>
+      <button class="btn-speed active" onclick="setSpeed(1)">1×</button>
+      <button class="btn-speed" onclick="setSpeed(2)">2×</button>
+      <button class="btn-speed" onclick="setSpeed(3)">4×</button>
+    </div>
+  </div>
+</header>
+
+<!-- KPI STRIP -->
+<div id="app">
+<div id="kpi-strip">
+  <div class="kpi-card">
+    <div class="kpi-label">Cash Balance</div>
+    <div class="kpi-value" id="kpi-balance">$50,000</div>
+    <div class="kpi-sub" id="kpi-balance-sub">Starting capital</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Daily Revenue</div>
+    <div class="kpi-value positive" id="kpi-rev">$0</div>
+    <div class="kpi-sub" id="kpi-rev-sub">per cycle</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Daily OpEx</div>
+    <div class="kpi-value negative" id="kpi-opex">$0</div>
+    <div class="kpi-sub" id="kpi-opex-sub">per cycle</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Net Margin</div>
+    <div class="kpi-value" id="kpi-margin">—</div>
+    <div class="kpi-sub" id="kpi-margin-sub">profit / loss</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Branches</div>
+    <div class="kpi-value" id="kpi-branches">1 / 15</div>
+    <div class="branch-progress"><div class="branch-progress-fill" id="branch-fill" style="width:6.67%"></div></div>
+    <div class="kpi-sub" id="kpi-branch-sub">expansion target</div>
+  </div>
+</div>
+
+<!-- LEFT COLUMN -->
+<div id="left-col">
+
+  <!-- P&L Chart -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">P&L Trend</span>
+      <span class="panel-badge" id="chart-badge">Last 30 days</span>
+    </div>
+    <div id="chart-area">
+      <canvas id="pl-chart" width="800" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Upgrades -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Strategic Upgrades</span>
+      <span class="panel-badge">Purchase once</span>
+    </div>
+    <div id="upgrades-grid"></div>
+  </div>
+
+  <!-- Event Log -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Operations Log</span>
+      <span class="panel-badge" id="log-badge">Live</span>
+    </div>
+    <div id="log-list"></div>
+  </div>
+
+</div>
+
+<!-- RIGHT COLUMN -->
+<div id="right-col">
+
+  <!-- Expansion -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Branch Network</span>
+      <span class="panel-badge" id="exp-badge">Active</span>
+    </div>
+    <div id="expansion-panel">
+      <div class="expand-visual" id="branch-grid"></div>
+      <button class="btn-expand" id="btn-expand" onclick="expandBranch()">
+        <span>Open New Branch</span>
+        <span class="btn-expand-cost" id="expand-cost-lbl">$25,000</span>
+      </button>
+      <div class="neg-warning" id="neg-warning">
+        ⚠ Cash below zero — <span id="neg-days-left">3</span> cycles until bankruptcy
+      </div>
+    </div>
+  </div>
+
+  <!-- Financials -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Daily Financials</span>
+      <span class="panel-badge">Per cycle</span>
+    </div>
+    <div id="financials-panel">
+      <div class="fin-row">
+        <span class="fin-label">Base Revenue</span>
+        <span class="fin-val pos" id="fin-base-rev">—</span>
+      </div>
+      <div class="fin-row">
+        <span class="fin-label">Revenue Multiplier</span>
+        <span class="fin-val" id="fin-rev-mult">1.00×</span>
+      </div>
+      <div class="fin-row">
+        <span class="fin-label">Gross Revenue</span>
+        <span class="fin-val pos" id="fin-gross-rev">—</span>
+      </div>
+      <div class="fin-divider"></div>
+      <div class="fin-row">
+        <span class="fin-label">Base OpEx</span>
+        <span class="fin-val neg" id="fin-base-opex">—</span>
+      </div>
+      <div class="fin-row">
+        <span class="fin-label">OpEx Reduction</span>
+        <span class="fin-val pos" id="fin-opex-red">—</span>
+      </div>
+      <div class="fin-divider"></div>
+      <div class="fin-row total">
+        <span class="fin-label">Daily Net P&L</span>
+        <span class="fin-val" id="fin-net">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Actions</span>
+    </div>
+    <div id="controls-panel">
+      <button class="btn-action" onclick="triggerInvestorEvent()">
+        <span class="btn-icon">🤝</span> Request Investor Meeting
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <div class="modal-eyebrow" id="modal-eyebrow">Investor Meeting</div>
+    <div class="modal-title" id="modal-title">Strategic Question</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-options" id="modal-options"></div>
+    <button class="modal-close-btn" id="modal-close-btn" onclick="closeModal()" style="display:none">
+      Continue →
+    </button>
+  </div>
+</div>
+
+<script>
+// ─── GAME STATE ──────────────────────────────────────────────────────────────
+let gameState = {
+  day: 1,
+  balance: 50000,
+  branches: 1,
+  maxBranches: 15,
+  revMultiplier: 1.0,
+  opexReduction: 0,
+  upgrades: {},
+  negativeDays: 0,
+  gameOver: false,
+  gameWon: false,
+  speedIndex: 1,
+  totalRevenue: 0,
+  totalOpex: 0,
+  plHistory: [],       // {day, net}
+  investorCooldown: 0,
+  lastBalance: 50000,
+};
+
+const BASE_REV_PER_BRANCH = 1200;
+const BASE_OPEX_PER_BRANCH = 800;
+const EXPAND_BASE_COST = 25000;
+const EXPAND_COST_SCALING = 3500;
+
+// ─── UPGRADES DEFINITION ─────────────────────────────────────────────────────
+const UPGRADES = [
+  {
+    id: 'central_kitchen',
+    name: 'Central Kitchen',
+    desc: 'Centralise food prep to cut per-branch costs.',
+    cost: 18000,
+    effect: 'opexReduction += 150 per branch',
+    icon: '🏭',
+    apply: (gs) => { gs.opexReduction += 150 * gs.branches; },
+  },
+  {
+    id: 'loyalty_app',
+    name: 'Loyalty App',
+    desc: 'Mobile rewards program boosts repeat visits.',
+    cost: 12000,
+    effect: '+15% revenue multiplier',
+    icon: '📱',
+    apply: (gs) => { gs.revMultiplier += 0.15; },
+  },
+  {
+    id: 'marketing_blitz',
+    name: 'Marketing Blitz',
+    desc: 'City-wide campaign drives new customer acquisition.',
+    cost: 22000,
+    effect: '+25% revenue multiplier',
+    icon: '📣',
+    apply: (gs) => { gs.revMultiplier += 0.25; },
+  },
+  {
+    id: 'supply_chain',
+    name: 'Supply Chain Opt.',
+    desc: 'Direct sourcing deals reduce bean & supply costs.',
+    cost: 15000,
+    effect: '−$200 OpEx per branch',
+    icon: '🌍',
+    apply: (gs) => { gs.opexReduction += 200 * gs.branches; },
+  },
+  {
+    id: 'auto_brew',
+    name: 'AutoBrew Systems',
+    desc: 'Automated espresso machines reduce labour hours.',
+    cost: 30000,
+    effect: '−$300 OpEx per branch & +5% rev',
+    icon: '🤖',
+    apply: (gs) => { gs.opexReduction += 300 * gs.branches; gs.revMultiplier += 0.05; },
+  },
+  {
+    id: 'brand_licensing',
+    name: 'Brand Licensing',
+    desc: 'License the brand to third-party operators.',
+    cost: 35000,
+    effect: '+$500 passive daily income',
+    icon: '™',
+    apply: (gs) => { gs._passiveIncome = (gs._passiveIncome || 0) + 500; },
+  },
+  {
+    id: 'drive_thru',
+    name: 'Drive-Thru Rollout',
+    desc: 'Add drive-through lanes to all branches.',
+    cost: 40000,
+    effect: '+35% revenue multiplier',
+    icon: '🚗',
+    apply: (gs) => { gs.revMultiplier += 0.35; },
+  },
+  {
+    id: 'hr_system',
+    name: 'HR & Training Platform',
+    desc: 'Reduce staff turnover and improve service quality.',
+    cost: 14000,
+    effect: '+10% rev, −$100 OpEx per branch',
+    icon: '👥',
+    apply: (gs) => { gs.revMultiplier += 0.10; gs.opexReduction += 100 * gs.branches; },
+  },
+];
+
+// ─── INVESTOR EVENTS ──────────────────────────────────────────────────────────
+const INVESTOR_EVENTS = [
+  {
+    title: "Scaling Strategy",
+    question: "Your lead investor asks: how will you achieve rapid unit growth without sacrificing quality?",
+    options: [
+      { label: "A — Aggressive franchise expansion", outcome: "good", text: "Investor loved the bold franchise model. Funding secured!", reward: 40000 },
+      { label: "B — Sustainable unit economics first", outcome: "great", text: "Investor respected the disciplined approach. Series A locked in!", reward: 60000 },
+      { label: "C — Rely on viral social media", outcome: "bad", text: "Investor was unconvinced by social-only strategy. They passed.", reward: -5000 },
+    ]
+  },
+  {
+    title: "Unit Economics",
+    question: "Investor asks: what's your path to positive store-level EBITDA?",
+    options: [
+      { label: "A — Increase ticket size via premium menu", outcome: "good", text: "Premium pivot resonated. Bridge funding approved!", reward: 30000 },
+      { label: "B — Volume play — more locations, lower cost", outcome: "bad", text: "Investor worried about diluting the brand. No deal.", reward: -8000 },
+      { label: "C — OpEx optimisation through tech", outcome: "great", text: "Tech-led efficiency story was compelling. Full investment!", reward: 55000 },
+    ]
+  },
+  {
+    title: "Competitive Moat",
+    question: "Board asks: what's your defensible competitive advantage in a saturated market?",
+    options: [
+      { label: "A — Hyper-local community presence", outcome: "great", text: "Community flywheel strategy earned strong conviction. Cash in!", reward: 50000 },
+      { label: "B — Proprietary blend & roasting IP", outcome: "good", text: "Solid brand differentiation. Partial funding received.", reward: 25000 },
+      { label: "C — Lowest price in the market", outcome: "bad", text: "Race-to-bottom pricing alarmed investors. Meeting ended early.", reward: -10000 },
+    ]
+  },
+  {
+    title: "Financial Discipline",
+    question: "CFO asks: how are you managing cash burn relative to growth?",
+    options: [
+      { label: "A — Lean ops, each branch cashflow-positive at 90 days", outcome: "great", text: "Exceptional unit discipline. Emergency bridge closed!", reward: 65000 },
+      { label: "B — We invest in growth first, profits later", outcome: "bad", text: "Investor uncomfortable with the timeline. Hard pass.", reward: -12000 },
+      { label: "C — Reinvesting all revenue into new openings", outcome: "good", text: "Growth-focused, but credible. Top-up injection approved.", reward: 35000 },
+    ]
+  },
+  {
+    title: "International Expansion",
+    question: "Investor asks: when are you ready to expand beyond the home market?",
+    options: [
+      { label: "A — After hitting 10 profitable branches domestically", outcome: "great", text: "Measured approach was exactly what they wanted. Funded!", reward: 70000 },
+      { label: "B — Immediately via master franchise agreements", outcome: "good", text: "Bold but structured. Partial capital injection.", reward: 30000 },
+      { label: "C — We're already planning 3 overseas locations now", outcome: "bad", text: "Investor thought it was too early. No term sheet today.", reward: -8000 },
+    ]
+  },
+];
+
+// ─── COMPUTE DAILY FINANCIALS ─────────────────────────────────────────────────
+function getDailyFinancials() {
+  const baseRev = gameState.branches * BASE_REV_PER_BRANCH;
+  const grossRev = baseRev * gameState.revMultiplier + (gameState._passiveIncome || 0);
+  const baseOpex = gameState.branches * BASE_OPEX_PER_BRANCH;
+  const opexAfter = Math.max(baseOpex - gameState.opexReduction, gameState.branches * 100);
+  const net = grossRev - opexAfter;
+  return { baseRev, grossRev, baseOpex, opexAfter, net };
+}
+
+// ─── TICK ─────────────────────────────────────────────────────────────────────
+let tickInterval = null;
+const SPEEDS = [0, 1500, 750, 350];
+
+function setSpeed(idx) {
+  gameState.speedIndex = idx;
+  document.querySelectorAll('.btn-speed').forEach((b,i) => b.classList.toggle('active', i === idx));
+  if (tickInterval) clearInterval(tickInterval);
+  if (idx > 0) tickInterval = setInterval(tick, SPEEDS[idx]);
+}
+
+function tick() {
+  if (gameState.gameOver || gameState.gameWon) return;
+
+  gameState.day++;
+  const fin = getDailyFinancials();
+  gameState.balance += fin.net;
+  gameState.totalRevenue += fin.grossRev;
+  gameState.totalOpex += fin.opexAfter;
+
+  gameState.plHistory.push({ day: gameState.day, net: fin.net });
+  if (gameState.plHistory.length > 60) gameState.plHistory.shift();
+
+  // Negative cash check
+  if (gameState.balance < 0) {
+    gameState.negativeDays++;
+    if (gameState.negativeDays >= 3) {
+      triggerGameOver();
+      return;
+    }
+  } else {
+    gameState.negativeDays = 0;
+  }
+
+  // Random investor event
+  if (gameState.investorCooldown > 0) {
+    gameState.investorCooldown--;
+  } else if (Math.random() < 0.008 && gameState.balance > 0) {
+    triggerInvestorEvent();
+  }
+
+  // Win check
+  if (gameState.branches >= gameState.maxBranches) {
+    triggerWin();
+    return;
+  }
+
+  gameState.lastBalance = gameState.balance;
+  renderUI();
+}
+
+// ─── EXPAND BRANCH ────────────────────────────────────────────────────────────
+function getExpandCost() {
+  return EXPAND_BASE_COST + (gameState.branches - 1) * EXPAND_COST_SCALING;
+}
+
+function expandBranch() {
+  const cost = getExpandCost();
+  if (gameState.balance < cost) {
+    addLog('Insufficient capital to open a new branch.', 'warning');
+    return;
+  }
+  if (gameState.branches >= gameState.maxBranches) return;
+
+  gameState.balance -= cost;
+  gameState.branches++;
+  // Scale opex reduction upgrades
+  ['central_kitchen','supply_chain','auto_brew','hr_system'].forEach(id => {
+    if (gameState.upgrades[id]) {
+      const upg = UPGRADES.find(u => u.id === id);
+      // recalc incremental
+    }
+  });
+  addLog(`Branch #${gameState.branches} opened. CapEx: $${cost.toLocaleString()}`, 'success');
+  renderUI();
+}
+
+// ─── BUY UPGRADE ─────────────────────────────────────────────────────────────
+function buyUpgrade(id) {
+  if (gameState.upgrades[id]) return;
+  const upg = UPGRADES.find(u => u.id === id);
+  if (!upg) return;
+  if (gameState.balance < upg.cost) {
+    addLog(`Insufficient funds for "${upg.name}".`, 'warning');
+    return;
+  }
+  gameState.balance -= upg.cost;
+  gameState.upgrades[id] = true;
+  upg.apply(gameState);
+  addLog(`Upgrade acquired: ${upg.name}`, 'success');
+  renderUI();
+}
+
+// ─── INVESTOR MODAL ───────────────────────────────────────────────────────────
+let currentEvent = null;
+
+function triggerInvestorEvent() {
+  if (gameState.gameOver || gameState.gameWon) return;
+  setSpeed(0); // pause
+
+  currentEvent = INVESTOR_EVENTS[Math.floor(Math.random() * INVESTOR_EVENTS.length)];
+  document.getElementById('modal-eyebrow').textContent = '💼 Investor Meeting — Day ' + gameState.day;
+  document.getElementById('modal-title').textContent = currentEvent.title;
+  document.getElementById('modal-body').textContent = currentEvent.question;
+
+  const optContainer = document.getElementById('modal-options');
+  optContainer.innerHTML = '';
+  currentEvent.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'modal-option';
+    btn.innerHTML = `<span class="modal-opt-key">${['A','B','C'][i]}</span><span>${opt.label.substring(4)}</span>`;
+    btn.onclick = () => resolveInvestorChoice(i);
+    optContainer.appendChild(btn);
+  });
+
+  document.getElementById('modal-close-btn').style.display = 'none';
+  openModal();
+  gameState.investorCooldown = 30 + Math.floor(Math.random() * 20);
+}
+
+function resolveInvestorChoice(idx) {
+  const opt = currentEvent.options[idx];
+  gameState.balance += opt.reward;
+  if (gameState.balance < 0) gameState.balance = 0;
+
+  document.getElementById('modal-eyebrow').textContent = opt.outcome === 'bad' ? '❌ No Deal' : '✅ Deal Closed';
+  document.getElementById('modal-title').textContent = opt.outcome === 'bad' ? 'Investor Passed' : 'Funding Secured!';
+  document.getElementById('modal-body').innerHTML = opt.text + `<br><br><strong style="font-family:'DM Mono',monospace;color:${opt.reward > 0 ? 'var(--green)' : 'var(--red)'}">
+    ${opt.reward > 0 ? '+' : ''}$${opt.reward.toLocaleString()}
+  </strong> injected into balance.`;
+  document.getElementById('modal-options').innerHTML = '';
+  document.getElementById('modal-close-btn').style.display = 'block';
+
+  const logType = opt.reward > 0 ? 'success' : 'danger';
+  addLog(`Investor meeting: ${opt.text.substring(0,50)}... ${opt.reward > 0 ? '+' : ''}$${opt.reward.toLocaleString()}`, logType);
+  renderUI();
+}
+
+function triggerGameOver() {
+  gameState.gameOver = true;
+  setSpeed(0);
+  document.getElementById('modal-eyebrow').textContent = '💀 Bankruptcy';
+  document.getElementById('modal-title').textContent = 'The Chain Has Collapsed';
+  document.getElementById('modal-body').innerHTML = `
+    After ${gameState.day} days of operation, GROUNDS has run out of capital and entered administration.
+    You reached <strong>${gameState.branches} of 15</strong> branches before insolvency.<br><br>
+    Total revenue generated: <strong style="color:var(--green)">$${gameState.totalRevenue.toLocaleString(undefined,{maximumFractionDigits:0})}</strong>
+  `;
+  document.getElementById('modal-options').innerHTML = '';
+  const closeBtn = document.getElementById('modal-close-btn');
+  closeBtn.textContent = '↺ Start Over';
+  closeBtn.style.display = 'block';
+  closeBtn.onclick = resetGame;
+  openModal();
+}
+
+function triggerWin() {
+  gameState.gameWon = true;
+  setSpeed(0);
+  document.getElementById('modal-eyebrow').textContent = '🏆 Mission Accomplished';
+  document.getElementById('modal-title').textContent = 'Empire Built.';
+  document.getElementById('modal-body').innerHTML = `
+    GROUNDS has reached <strong>15 active branches</strong> in ${gameState.day} days!
+    The brand is now a recognised city-wide institution.<br><br>
+    Final Balance: <strong style="color:var(--green)">$${Math.round(gameState.balance).toLocaleString()}</strong><br>
+    Total Revenue: <strong style="color:var(--green)">$${gameState.totalRevenue.toLocaleString(undefined,{maximumFractionDigits:0})}</strong>
+  `;
+  document.getElementById('modal-options').innerHTML = '';
+  const closeBtn = document.getElementById('modal-close-btn');
+  closeBtn.textContent = '☕ Play Again';
+  closeBtn.style.display = 'block';
+  closeBtn.onclick = resetGame;
+  openModal();
+}
+
+function openModal() {
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+  if (!gameState.gameOver && !gameState.gameWon) setSpeed(1);
+}
+
+// ─── LOG ──────────────────────────────────────────────────────────────────────
+const MAX_LOG = 60;
+function addLog(msg, type = 'info') {
+  const list = document.getElementById('log-list');
+  const div = document.createElement('div');
+  div.className = `log-entry ${type}`;
+  div.innerHTML = `<span class="log-day">Day ${gameState.day}</span>${msg}`;
+  list.prepend(div);
+  while (list.children.length > MAX_LOG) list.removeChild(list.lastChild);
+}
+
+// ─── CHART ────────────────────────────────────────────────────────────────────
+function drawChart() {
+  const canvas = document.getElementById('pl-chart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+
+  const data = gameState.plHistory;
+  if (data.length < 2) return;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const vals = data.map(d => d.net);
+  const minV = Math.min(...vals, 0);
+  const maxV = Math.max(...vals, 1);
+  const range = maxV - minV || 1;
+
+  const toX = (i) => (i / (data.length - 1)) * (W - 20) + 10;
+  const toY = (v) => H - 16 - ((v - minV) / range) * (H - 28);
+
+  // Zero line
+  const zeroY = toY(0);
+  ctx.strokeStyle = 'rgba(61,79,92,0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(10, zeroY); ctx.lineTo(W - 10, zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(34,197,94,0.25)');
+  grad.addColorStop(1, 'rgba(34,197,94,0.0)');
+  ctx.beginPath();
+  ctx.moveTo(toX(0), zeroY);
+  data.forEach((d, i) => ctx.lineTo(toX(i), toY(d.net)));
+  ctx.lineTo(toX(data.length - 1), zeroY);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  data.forEach((d, i) => i === 0 ? ctx.moveTo(toX(i), toY(d.net)) : ctx.lineTo(toX(i), toY(d.net)));
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Latest dot
+  const last = data[data.length - 1];
+  ctx.beginPath();
+  ctx.arc(toX(data.length - 1), toY(last.net), 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = last.net >= 0 ? '#22c55e' : '#ef4444';
+  ctx.fill();
+}
+
+// ─── RENDER UI ────────────────────────────────────────────────────────────────
+function fmt(n) { return '$' + Math.round(n).toLocaleString(); }
+
+function renderUI() {
+  const fin = getDailyFinancials();
+  const gs = gameState;
+
+  // Header
+  document.getElementById('hdr-day').textContent = gs.day;
+  document.getElementById('hdr-quarter').textContent = 'Q' + Math.ceil(gs.day / 90);
+
+  // KPIs
+  const balEl = document.getElementById('kpi-balance');
+  balEl.textContent = fmt(gs.balance);
+  balEl.className = 'kpi-value ' + (gs.balance < 0 ? 'negative' : gs.balance < 10000 ? 'warning' : '');
+  const diff = gs.balance - gs.lastBalance;
+  const subEl = document.getElementById('kpi-balance-sub');
+  subEl.innerHTML = diff !== 0 ? `<span class="${diff >= 0 ? 'up' : 'dn'}">${diff >= 0 ? '▲' : '▼'} ${fmt(Math.abs(diff))}/day</span>` : 'Stable';
+
+  document.getElementById('kpi-rev').textContent = fmt(fin.grossRev);
+  document.getElementById('kpi-opex').textContent = fmt(fin.opexAfter);
+
+  const margin = fin.grossRev > 0 ? ((fin.net / fin.grossRev) * 100).toFixed(1) : '0.0';
+  const marginEl = document.getElementById('kpi-margin');
+  marginEl.textContent = (fin.net >= 0 ? '+' : '') + fmt(fin.net) + '/day';
+  marginEl.className = 'kpi-value ' + (fin.net >= 0 ? 'positive' : 'negative');
+  document.getElementById('kpi-margin-sub').innerHTML = `<span class="${fin.net >= 0 ? 'up' : 'dn'}">${fin.net >= 0 ? '▲' : '▼'} ${margin}% margin</span>`;
+
+  document.getElementById('kpi-branches').textContent = `${gs.branches} / ${gs.maxBranches}`;
+  document.getElementById('branch-fill').style.width = `${(gs.branches / gs.maxBranches) * 100}%`;
+
+  // Financials panel
+  document.getElementById('fin-base-rev').textContent = fmt(fin.baseRev);
+  document.getElementById('fin-rev-mult').textContent = gs.revMultiplier.toFixed(2) + '×';
+  document.getElementById('fin-gross-rev').textContent = fmt(fin.grossRev);
+  document.getElementById('fin-base-opex').textContent = fmt(fin.baseOpex);
+  document.getElementById('fin-opex-red').textContent = gs.opexReduction > 0 ? `−${fmt(Math.min(gs.opexReduction, fin.baseOpex - gs.branches * 100))}` : '—';
+  const netEl = document.getElementById('fin-net');
+  netEl.textContent = (fin.net >= 0 ? '+' : '') + fmt(fin.net);
+  netEl.className = 'fin-val ' + (fin.net >= 0 ? 'pos' : 'neg');
+
+  // Expand btn
+  const cost = getExpandCost();
+  document.getElementById('expand-cost-lbl').textContent = fmt(cost);
+  document.getElementById('btn-expand').disabled = gs.balance < cost || gs.branches >= gs.maxBranches || gs.gameOver;
+
+  // Neg warning
+  const negWarn = document.getElementById('neg-warning');
+  if (gs.negativeDays > 0) {
+    negWarn.classList.add('show');
+    document.getElementById('neg-days-left').textContent = 3 - gs.negativeDays;
+  } else {
+    negWarn.classList.remove('show');
+  }
+
+  // Branch grid
+  const grid = document.getElementById('branch-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= gs.maxBranches; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'branch-dot' + (i <= gs.branches ? ' active' : '');
+    if (i > gs.branches) dot.setAttribute('data-n', i);
+    grid.appendChild(dot);
+  }
+  document.getElementById('exp-badge').textContent = `${gs.branches} Active`;
+
+  // Upgrades
+  renderUpgrades();
+
+  // Chart
+  drawChart();
+}
+
+function renderUpgrades() {
+  const grid = document.getElementById('upgrades-grid');
+  grid.innerHTML = '';
+  UPGRADES.forEach(upg => {
+    const purchased = !!gameState.upgrades[upg.id];
+    const canAfford = gameState.balance >= upg.cost;
+    const div = document.createElement('div');
+    div.className = 'upgrade-card' + (purchased ? ' purchased' : (!canAfford ? ' locked' : ''));
+    div.innerHTML = `
+      <div class="upg-name">${upg.icon} ${upg.name}</div>
+      <div class="upg-desc">${upg.desc}</div>
+      <div class="upg-cost">${fmt(upg.cost)}</div>
+      <div class="upg-effect">${upg.effect}</div>
+    `;
+    if (!purchased) div.onclick = () => buyUpgrade(upg.id);
+    grid.appendChild(div);
+  });
+}
+
+// ─── RESET ────────────────────────────────────────────────────────────────────
+function resetGame() {
+  closeModal();
+  gameState = {
+    day: 1, balance: 50000, branches: 1,
+    maxBranches: 15, revMultiplier: 1.0, opexReduction: 0,
+    upgrades: {}, negativeDays: 0, gameOver: false, gameWon: false,
+    speedIndex: 1, totalRevenue: 0, totalOpex: 0, plHistory: [],
+    investorCooldown: 0, lastBalance: 50000,
+  };
+  document.getElementById('log-list').innerHTML = '';
+  addLog('GROUNDS Coffee Co. founded. Day 1 of operations.', 'info');
+  setSpeed(1);
+  renderUI();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', drawChart);
+addLog('GROUNDS Coffee Co. founded. Day 1 of operations.', 'info');
+addLog('Open branches, buy upgrades, and land investor deals to reach 15 locations.', 'info');
+renderUI();
+setSpeed(1);
+</script>
+</body>
+</html>

@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PARRY — Frame-Perfect Reflex</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0f1e;
+    --canvas-bg: #0f172a;
+    --accent: #06b6d4;
+    --danger: #ef4444;
+    --gold: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #475569;
+  }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  #gameCanvas {
+    display: block;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px rgba(6,182,212,0.12), 0 32px 80px rgba(0,0,0,0.7);
+    cursor: none;
+  }
+  #meta {
+    display: flex;
+    width: 700px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2px;
+  }
+  #meta .label {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  #meta .hint {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  #meta .hint span {
+    color: var(--accent);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <canvas id="gameCanvas" width="700" height="360"></canvas>
+  <div id="meta">
+    <div class="label">Frame-Perfect Parry</div>
+    <div class="hint">Press <span>SPACE</span> to parry · <span>R</span> to restart</div>
+  </div>
+</div>
+
+<script>
+// ─── Canvas & Context ──────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ─── Constants ────────────────────────────────────────────────────────────
+const COLORS = {
+  bg:        '#0f172a',
+  bgLine:    'rgba(148,163,184,0.04)',
+  player:    '#06b6d4',
+  playerGlow:'rgba(6,182,212,0.25)',
+  attack:    '#ef4444',
+  attackGlow:'rgba(239,68,68,0.3)',
+  parry:     '#fbbf24',
+  parryGlow: 'rgba(251,191,36,0.5)',
+  shield:    '#ffffff',
+  text:      '#e2e8f0',
+  muted:     '#475569',
+  success:   '#10b981',
+  dim:       'rgba(15,23,42,0.92)',
+};
+
+const PARRY_WINDOW_MS  = 200;   // active parry duration
+const PARRY_COOLDOWN_F = 1;    // frames of cooldown after misfire
+const PLAYER_X        = 90;
+const PLAYER_Y        = H / 2;
+const PLAYER_SIZE     = 30;
+const ATTACK_SIZE     = 18;
+const ATTACK_START_X  = W + 40;
+const BASE_SPEED      = 5.2;
+const SPEED_INCREMENT = 0.28;
+const MAX_LIVES       = 3;
+
+// ─── Game State ───────────────────────────────────────────────────────────
+let state = 'START'; // START | PLAYING | GAMEOVER
+let score, lives, hiScore;
+let attack, isParrying, parryStartTime, cooldownFrames;
+let shakeFrames, shakeIntensity;
+let particles, flashAlpha, flashColor;
+let frameCount;
+let currentSpeed, pendingAttack, pendingDelay;
+let comboCount, lastResultText, lastResultAlpha, lastResultColor;
+let screenLines;
+
+function initGame() {
+  score          = 0;
+  lives          = MAX_LIVES;
+  isParrying     = false;
+  parryStartTime = 0;
+  cooldownFrames = 0;
+  shakeFrames    = 0;
+  shakeIntensity = 0;
+  particles      = [];
+  flashAlpha     = 0;
+  flashColor     = '#ffffff';
+  frameCount     = 0;
+  currentSpeed   = BASE_SPEED;
+  comboCount     = 0;
+  lastResultText = '';
+  lastResultAlpha= 0;
+  lastResultColor= '#ffffff';
+  attack         = null;
+  pendingAttack  = false;
+  pendingDelay   = 0;
+  screenLines    = buildGridLines();
+  spawnAttack();
+}
+
+function buildGridLines() {
+  const lines = [];
+  for (let x = 0; x < W; x += 60) lines.push({ x, type: 'v' });
+  for (let y = 0; y < H; y += 60) lines.push({ y, type: 'h' });
+  return lines;
+}
+
+// ─── Attack ───────────────────────────────────────────────────────────────
+function spawnAttack() {
+  const yVariance = (Math.random() - 0.5) * 100;
+  attack = {
+    x:      ATTACK_START_X,
+    y:      PLAYER_Y + yVariance,
+    size:   ATTACK_SIZE,
+    speed:  currentSpeed,
+    active: true,
+    bouncing: false,
+    bounceVx: 0,
+    bounceVy: 0,
+    alpha:  1,
+    trail:  [],
+  };
+}
+
+function spawnDelayedAttack(delay) {
+  pendingAttack = true;
+  pendingDelay  = delay;
+}
+
+// ─── Particles ────────────────────────────────────────────────────────────
+function emitParticles(x, y, color, count, speedMult = 1) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + (Math.random() - 0.5) * 0.4;
+    const spd   = (2 + Math.random() * 5) * speedMult;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 1,
+      decay: 0.04 + Math.random() * 0.04,
+      size: 2 + Math.random() * 3,
+      color,
+    });
+  }
+}
+
+function emitRingParticles(x, y, color) {
+  for (let i = 0; i < 24; i++) {
+    const angle = (Math.PI * 2 / 24) * i;
+    const spd   = 5 + Math.random() * 4;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 1,
+      decay: 0.025 + Math.random() * 0.02,
+      size: 3 + Math.random() * 4,
+      color,
+      ring: true,
+    });
+  }
+}
+
+// ─── Collision ────────────────────────────────────────────────────────────
+function checkCollision(ax, ay, as, px, py, ps) {
+  return Math.abs(ax - px) < (as / 2 + ps / 2) &&
+         Math.abs(ay - py) < (as / 2 + ps / 2);
+}
+
+// ─── Input ────────────────────────────────────────────────────────────────
+let keys = {};
+document.addEventListener('keydown', e => {
+  if (keys[e.code]) return;
+  keys[e.code] = true;
+
+  if (e.code === 'KeyR') {
+    if (state === 'GAMEOVER' || state === 'START') {
+      state = 'PLAYING';
+      initGame();
+    }
+  }
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (state === 'START') { state = 'PLAYING'; initGame(); return; }
+    if (state === 'GAMEOVER') { state = 'PLAYING'; initGame(); return; }
+    if (state !== 'PLAYING') return;
+
+    if (cooldownFrames > 0) return; // already in cooldown
+    if (!isParrying) {
+      isParrying     = true;
+      parryStartTime = performance.now();
+    }
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─── Update ───────────────────────────────────────────────────────────────
+function update(now) {
+  if (state !== 'PLAYING') return;
+  frameCount++;
+
+  // Pending spawn
+  if (pendingAttack) {
+    pendingDelay--;
+    if (pendingDelay <= 0) {
+      pendingAttack = false;
+      spawnAttack();
+    }
+  }
+
+  // Parry timer
+  if (isParrying) {
+    if (now - parryStartTime > PARRY_WINDOW_MS) {
+      isParrying     = false;
+      cooldownFrames = PARRY_COOLDOWN_F;
+    }
+  }
+  if (cooldownFrames > 0) cooldownFrames--;
+
+  // Flash fade
+  if (flashAlpha > 0) flashAlpha -= 0.06;
+
+  // Result text fade
+  if (lastResultAlpha > 0) lastResultAlpha -= 0.025;
+
+  // Shake decay
+  if (shakeFrames > 0) shakeFrames--;
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x   += p.vx;
+    p.y   += p.vy;
+    p.vx  *= 0.92;
+    p.vy  *= 0.92;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Attack movement
+  if (!attack) return;
+
+  if (attack.bouncing) {
+    attack.x     += attack.bounceVx;
+    attack.y     += attack.bounceVy;
+    attack.alpha -= 0.04;
+    if (attack.alpha <= 0 || attack.x > W + 60) {
+      attack = null;
+      spawnDelayedAttack(50 + Math.floor(Math.random() * 40));
+    }
+    // trail
+    attack.trail.push({ x: attack.x, y: attack.y, alpha: attack.alpha });
+    if (attack.trail.length > 10) attack.trail.shift();
+    return;
+  }
+
+  // Update trail
+  attack.trail.push({ x: attack.x, y: attack.y });
+  if (attack.trail.length > 12) attack.trail.shift();
+
+  attack.x -= attack.speed;
+
+  // Past player — too late
+  if (attack.x < PLAYER_X - PLAYER_SIZE * 2) {
+    takeDamage('LATE');
+    attack = null;
+    spawnDelayedAttack(70 + Math.floor(Math.random() * 40));
+    return;
+  }
+
+  // Check collision zone
+  const hit = checkCollision(attack.x, attack.y, attack.size, PLAYER_X, PLAYER_Y, PLAYER_SIZE);
+
+  if (hit) {
+    if (isParrying) {
+      perfectParry();
+    } else {
+      takeDamage('HIT');
+      attack = null;
+      spawnDelayedAttack(60 + Math.floor(Math.random() * 40));
+    }
+  }
+}
+
+function perfectParry() {
+  score++;
+  comboCount++;
+  playParrySound();
+  currentSpeed = BASE_SPEED + score * SPEED_INCREMENT;
+  isParrying   = false;
+
+  // Bounce the attack back
+  attack.bouncing = true;
+  attack.bounceVx =  attack.speed * 1.8;
+  attack.bounceVy = (Math.random() - 0.5) * 5;
+  attack.trail    = [];
+
+  // Effects
+  flashAlpha        = 1;
+  flashColor        = comboCount >= 5 ? COLORS.gold : '#ffffff';
+  lastResultText    = comboCount >= 5 ? `COMBO ×${comboCount}` : 'PERFECT';
+  lastResultAlpha   = 1;
+  lastResultColor   = comboCount >= 5 ? COLORS.parry : COLORS.success;
+
+  emitRingParticles(PLAYER_X, PLAYER_Y, COLORS.parry);
+  emitParticles(PLAYER_X, PLAYER_Y, '#ffffff', 8, 0.6);
+
+  if (score > (hiScore || 0)) hiScore = score;
+}
+
+function takeDamage(reason) {
+  lives--;
+  comboCount     = 0;
+  isParrying     = false;
+  cooldownFrames = PARRY_COOLDOWN_F * 2;
+  shakeFrames    = 18;
+  shakeIntensity = reason === 'HIT' ? 7 : 4;
+  flashAlpha     = 0.55;
+  flashColor     = COLORS.danger;
+
+  lastResultText  = reason === 'HIT' ? 'TOO LATE' : reason === 'LATE' ? 'MISSED' : 'TOO EARLY';
+  lastResultAlpha = 1;
+  lastResultColor = COLORS.danger;
+
+  emitParticles(PLAYER_X, PLAYER_Y, COLORS.danger, 14, 1.2);
+
+  if (lives <= 0) {
+    setTimeout(() => { state = 'GAMEOVER'; }, 600);
+  }
+}
+
+// ─── Draw Helpers ─────────────────────────────────────────────────────────
+function drawRoundedRect(x, y, w, h, r, fill, stroke, strokeW) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  if (fill)   { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeW || 1; ctx.stroke(); }
+}
+
+function drawGrid() {
+  ctx.save();
+  for (const line of screenLines) {
+    ctx.beginPath();
+    if (line.type === 'v') { ctx.moveTo(line.x, 0); ctx.lineTo(line.x, H); }
+    else                   { ctx.moveTo(0, line.y); ctx.lineTo(W, line.y); }
+    ctx.strokeStyle = COLORS.bgLine;
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const x = PLAYER_X, y = PLAYER_Y, s = PLAYER_SIZE;
+  const parryActive = isParrying;
+  const onCooldown  = cooldownFrames > 0;
+
+  // Glow
+  const glowColor = parryActive ? COLORS.parryGlow :
+                    onCooldown  ? 'rgba(239,68,68,0.2)' :
+                                  COLORS.playerGlow;
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, s * 2.2);
+  gradient.addColorStop(0, glowColor);
+  gradient.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, s * 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Shield body (hexagon)
+  ctx.save();
+  ctx.translate(x, y);
+  const shieldColor = parryActive ? COLORS.parry :
+                      onCooldown  ? COLORS.danger :
+                                    COLORS.player;
+  const sides = 6;
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const angle = (Math.PI * 2 / sides) * i - Math.PI / 2;
+    const sx = Math.cos(angle) * s;
+    const sy = Math.sin(angle) * s;
+    i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+  }
+  ctx.closePath();
+  ctx.fillStyle   = shieldColor + '22';
+  ctx.strokeStyle = shieldColor;
+  ctx.lineWidth   = parryActive ? 2.5 : 1.5;
+  ctx.fill();
+  ctx.stroke();
+
+  // Inner crosshair
+  ctx.strokeStyle = shieldColor + '88';
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.moveTo(-s * 0.4, 0); ctx.lineTo(s * 0.4, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -s * 0.4); ctx.lineTo(0, s * 0.4); ctx.stroke();
+
+  // Parry ring animation
+  if (parryActive) {
+    const elapsed  = performance.now() - parryStartTime;
+    const progress = elapsed / PARRY_WINDOW_MS;
+    const ringR    = s + progress * s * 1.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(251,191,36,${1 - progress})`;
+    ctx.lineWidth   = 2.5 - progress * 2;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawAttack() {
+  if (!attack) return;
+  const { x, y, size, trail, alpha, bouncing } = attack;
+
+  // Trail
+  for (let i = 0; i < trail.length; i++) {
+    const t     = trail[i];
+    const ratio = i / trail.length;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, size * 0.5 * ratio, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(239,68,68,${0.2 * ratio * (t.alpha !== undefined ? t.alpha : 1)})`;
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Glow
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, size * 2);
+  grad.addColorStop(0, 'rgba(239,68,68,0.5)');
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, size * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Diamond
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.PI / 4 + frameCount * 0.04);
+  ctx.beginPath();
+  ctx.rect(-size / 2, -size / 2, size, size);
+  ctx.fillStyle   = COLORS.attack + '33';
+  ctx.strokeStyle = COLORS.attack;
+  ctx.lineWidth   = 1.5;
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawHUD() {
+  // Score
+  ctx.save();
+  ctx.font        = '700 42px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle   = '#e2e8f0';
+  ctx.textAlign   = 'right';
+  ctx.textBaseline= 'top';
+  ctx.fillText(String(score).padStart(3, '0'), W - 28, 22);
+
+  ctx.font        = '500 11px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle   = COLORS.muted;
+  ctx.fillText('SCORE', W - 28, 70);
+
+  // Hi score
+  if (hiScore > 0) {
+    ctx.font      = '500 11px "Segoe UI", system-ui, sans-serif';
+    ctx.fillStyle = COLORS.muted + 'aa';
+    ctx.fillText(`BEST  ${String(hiScore).padStart(3, '0')}`, W - 28, 88);
+  }
+  ctx.restore();
+
+  // Lives
+  ctx.save();
+  ctx.textAlign   = 'left';
+  ctx.textBaseline= 'top';
+  ctx.font        = '500 11px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle   = COLORS.muted;
+  ctx.fillText('INTEGRITY', 28, 22);
+  const pip = 10, pipGap = 5;
+  for (let i = 0; i < MAX_LIVES; i++) {
+    ctx.beginPath();
+    ctx.arc(28 + i * (pip + pipGap) + pip / 2, 48, pip / 2, 0, Math.PI * 2);
+    if (i < lives) {
+      ctx.fillStyle   = COLORS.player;
+      ctx.shadowColor = COLORS.player;
+      ctx.shadowBlur  = 6;
+    } else {
+      ctx.fillStyle = COLORS.muted + '44';
+    }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+
+  // Speed indicator
+  ctx.save();
+  ctx.textAlign   = 'center';
+  ctx.textBaseline= 'top';
+  ctx.font        = '500 10px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle   = COLORS.muted + 'aa';
+  ctx.fillText(`VELOCITY  ${currentSpeed.toFixed(1)}`, W / 2, 16);
+  ctx.restore();
+
+  // Status bar (parry state)
+  const barW = 160, barH = 4;
+  const barX = (W - barW) / 2, barY = H - 30;
+  ctx.save();
+  drawRoundedRect(barX, barY, barW, barH, 2, COLORS.muted + '33');
+  if (isParrying) {
+    const elapsed   = performance.now() - parryStartTime;
+    const remaining = Math.max(0, 1 - elapsed / PARRY_WINDOW_MS);
+    drawRoundedRect(barX, barY, barW * remaining, barH, 2, COLORS.parry);
+  } else if (cooldownFrames > 0) {
+    const ratio = cooldownFrames / (PARRY_COOLDOWN_F * 2);
+    drawRoundedRect(barX, barY, barW * ratio, barH, 2, COLORS.danger + 'cc');
+  }
+
+  ctx.font        = '500 10px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline= 'bottom';
+  ctx.fillStyle   = isParrying     ? COLORS.parry :
+                    cooldownFrames > 0 ? COLORS.danger :
+                                         COLORS.muted;
+  ctx.fillText(
+    isParrying     ? 'PARRYING' :
+    cooldownFrames > 0 ? 'COOLDOWN' :
+                         'READY',
+    W / 2, barY - 6
+  );
+  ctx.restore();
+
+  // Result text
+  if (lastResultAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha  = Math.min(1, lastResultAlpha * 2);
+    ctx.font         = `700 20px "Segoe UI", system-ui, sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = lastResultColor;
+    ctx.shadowColor  = lastResultColor;
+    ctx.shadowBlur   = 20;
+    const ty         = PLAYER_Y - 70 - (1 - lastResultAlpha) * 18;
+    ctx.fillText(lastResultText, PLAYER_X + 40, ty);
+    ctx.restore();
+  }
+}
+
+function drawFlash() {
+  if (flashAlpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = flashAlpha * 0.35;
+  ctx.fillStyle   = flashColor;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawStartScreen() {
+  ctx.save();
+  // Background
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, W, H);
+  drawGrid();
+
+  // Title
+  ctx.textAlign   = 'center';
+  ctx.textBaseline= 'middle';
+  ctx.font        = '800 64px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle   = '#ffffff';
+  ctx.fillText('PARRY', W / 2, H / 2 - 52);
+
+  ctx.font        = '400 13px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle   = COLORS.muted;
+  ctx.fillText('Frame-Perfect Reflex System', W / 2, H / 2 - 8);
+
+  // Divider
+  ctx.fillStyle = COLORS.player + '66';
+  ctx.fillRect(W / 2 - 30, H / 2 + 10, 60, 1);
+
+  // Key prompt
+  ctx.font      = '600 12px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = COLORS.player;
+  ctx.fillText('PRESS  SPACE  TO  BEGIN', W / 2, H / 2 + 44);
+
+  // Mini legend
+  const lx = W / 2, ly = H / 2 + 90;
+  ctx.font      = '400 11px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = COLORS.muted;
+  ctx.fillText('Hold SPACE at the moment of impact to execute a perfect parry', lx, ly);
+
+  ctx.restore();
+}
+
+function drawGameOverScreen() {
+  // Dim overlay
+  ctx.save();
+  ctx.fillStyle = COLORS.dim;
+  ctx.fillRect(0, 0, W, H);
+
+  // Panel
+  const pw = 320, ph = 220, px = (W - pw) / 2, py = (H - ph) / 2;
+  drawRoundedRect(px, py, pw, ph, 10, '#0f172a', COLORS.muted + '44', 1);
+
+  ctx.textAlign   = 'center';
+  ctx.textBaseline= 'middle';
+
+  ctx.font      = '700 11px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = COLORS.danger;
+  ctx.fillText('S Y S T E M  F A I L U R E', W / 2, py + 36);
+
+  ctx.font      = '800 58px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(String(score).padStart(3, '0'), W / 2, py + 96);
+
+  ctx.font      = '500 11px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = COLORS.muted;
+  ctx.fillText('FINAL SCORE', W / 2, py + 130);
+
+  if (hiScore > 0) {
+    ctx.font      = '500 11px "Segoe UI", system-ui, sans-serif';
+    ctx.fillStyle = COLORS.parry + 'cc';
+    ctx.fillText(`PERSONAL BEST  —  ${String(hiScore).padStart(3, '0')}`, W / 2, py + 155);
+  }
+
+  ctx.font      = '600 12px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = COLORS.player;
+  ctx.fillText('PRESS  SPACE  OR  R  TO  RETRY', W / 2, py + 192);
+
+  ctx.restore();
+}
+
+// ─── Draw ─────────────────────────────────────────────────────────────────
+function draw(now) {
+  ctx.clearRect(0, 0, W, H);
+
+  if (state === 'START') { drawStartScreen(); return; }
+  if (state === 'GAMEOVER') {
+    // Still draw the game underneath
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, 0, W, H);
+    drawGrid();
+    drawParticles();
+    drawGameOverScreen();
+    return;
+  }
+
+  // Screen shake
+  ctx.save();
+  if (shakeFrames > 0) {
+    const s = (shakeFrames / 18) * shakeIntensity;
+    ctx.translate(
+      (Math.random() - 0.5) * s * 2,
+      (Math.random() - 0.5) * s * 2
+    );
+  }
+
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(-20, -20, W + 40, H + 40);
+  drawGrid();
+
+  // Vertical line separator
+  ctx.save();
+  ctx.strokeStyle = COLORS.player + '18';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath(); ctx.moveTo(PLAYER_X + PLAYER_SIZE + 12, 0); ctx.lineTo(PLAYER_X + PLAYER_SIZE + 12, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  drawAttack();
+  drawPlayer();
+  drawParticles();
+  drawFlash();
+  drawHUD();
+
+  ctx.restore();
+}
+
+function playParrySound() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Layer 1: sharp high-pitched "ping"
+  const osc1 = ctx.createOscillator();
+  const gain1 = ctx.createGain();
+  osc1.connect(gain1); gain1.connect(ctx.destination);
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(880, ctx.currentTime);
+  osc1.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
+  gain1.gain.setValueAtTime(0.4, ctx.currentTime);
+  gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+  osc1.start(); osc1.stop(ctx.currentTime + 0.3);
+
+  // Layer 2: low "thud" body impact
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.connect(gain2); gain2.connect(ctx.destination);
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(180, ctx.currentTime);
+  osc2.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.15);
+  gain2.gain.setValueAtTime(0.5, ctx.currentTime);
+  gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+  osc2.start(); osc2.stop(ctx.currentTime + 0.2);
+}
+
+// ─── Loop ─────────────────────────────────────────────────────────────────
+let lastTime = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  update(now);
+  draw(now);
+  lastTime = now;
+}
+
+hiScore = 0;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tension Fishing</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    cursor: pointer;
+  }
+  #hint {
+    color: #64748b;
+    font-size: 13px;
+    margin-top: 12px;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+<canvas id="c" width="260" height="520"></canvas>
+<div id="hint">Hold <kbd style="background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-family:inherit">Space</kbd> or <kbd style="background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-family:inherit">Click</kbd> to rise</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const W = canvas.width;
+const H = canvas.height;
+
+const GAUGE_X = 30;
+const GAUGE_Y = 60;
+const GAUGE_W = 160;
+const GAUGE_H = 400;
+
+const PROG_X = GAUGE_X + GAUGE_W + 14;
+const PROG_W = 16;
+
+const BAR_H = 70;
+const FISH_R = 9;
+
+const GRAVITY = 0.32;
+const LIFT = -0.55;
+const TERMINAL = 6;
+const FRICTION = 0.88;
+
+const CATCH_RATE = 0.55;
+const LOSE_RATE = 0.35;
+
+const FISH_SPEED_MIN = 1.8;
+const FISH_SPEED_MAX = 3.8;
+const FISH_IDLE_MIN = 400;
+const FISH_IDLE_MAX = 1100;
+
+const STATE = { IDLE: 0, PLAYING: 1, WIN: 2, LOSE: 3 };
+
+let gameState, bar, fish, catchProgress, inputHeld, animId, lostFromFull;
+
+function rnd(a, b) { return Math.random() * (b - a) + a; }
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function initGame() {
+  gameState = STATE.IDLE;
+  bar = {
+    y: GAUGE_Y + GAUGE_H / 2 - BAR_H / 2,
+    vel: 0,
+  };
+  fish = {
+    y: GAUGE_Y + GAUGE_H / 2,
+    targetY: GAUGE_Y + GAUGE_H / 2,
+    speed: rnd(FISH_SPEED_MIN, FISH_SPEED_MAX),
+    idleTimer: 0,
+    idleDuration: rnd(FISH_IDLE_MIN, FISH_IDLE_MAX),
+    state: 'idle',
+    direction: 1,
+  };
+  catchProgress = 0;
+  lostFromFull = false;
+  inputHeld = false;
+}
+
+function pickFishTarget() {
+  const margin = 20;
+  fish.targetY = rnd(GAUGE_Y + margin, GAUGE_Y + GAUGE_H - margin);
+  fish.speed = rnd(FISH_SPEED_MIN, FISH_SPEED_MAX);
+  fish.state = 'moving';
+}
+
+function updateFish(dt) {
+  if (fish.state === 'moving') {
+    const diff = fish.targetY - fish.y;
+    const dist = Math.abs(diff);
+    if (dist < 2) {
+      fish.y = fish.targetY;
+      fish.state = 'idle';
+      fish.idleTimer = 0;
+      fish.idleDuration = rnd(FISH_IDLE_MIN, FISH_IDLE_MAX);
+    } else {
+      const step = Math.min(fish.speed * (dt / 16), dist);
+      fish.y += Math.sign(diff) * step;
+    }
+  } else {
+    fish.idleTimer += dt;
+    if (fish.idleTimer >= fish.idleDuration) {
+      pickFishTarget();
+    }
+  }
+  fish.y = clamp(fish.y, GAUGE_Y + FISH_R, GAUGE_Y + GAUGE_H - FISH_R);
+}
+
+function updateBar(dt) {
+  if (inputHeld) {
+    bar.vel += LIFT * (dt / 16);
+  }
+  bar.vel += GRAVITY * (dt / 16);
+  bar.vel = clamp(bar.vel * Math.pow(FRICTION, dt / 16), -TERMINAL, TERMINAL);
+  bar.y += bar.vel * (dt / 16);
+
+  const minY = GAUGE_Y;
+  const maxY = GAUGE_Y + GAUGE_H - BAR_H;
+  if (bar.y <= minY) { bar.y = minY; bar.vel = 0; }
+  if (bar.y >= maxY) { bar.y = maxY; bar.vel = 0; }
+}
+
+function checkIntersect() {
+  return fish.y >= bar.y && fish.y <= bar.y + BAR_H;
+}
+
+function updateProgress(dt) {
+  const hit = checkIntersect();
+  if (hit) {
+    catchProgress = clamp(catchProgress + CATCH_RATE * (dt / 16), 0, 100);
+  } else {
+    catchProgress = clamp(catchProgress - LOSE_RATE * (dt / 16), 0, 100);
+  }
+
+  if (catchProgress >= 100) {
+    gameState = STATE.WIN;
+  } else if (catchProgress <= 0 && lostFromFull) {
+    gameState = STATE.LOSE;
+  }
+  if (catchProgress > 20) lostFromFull = true;
+
+  return hit;
+}
+
+function drawGauge() {
+  ctx.save();
+  ctx.fillStyle = '#0d1f38';
+  ctx.fillRect(GAUGE_X, GAUGE_Y, GAUGE_W, GAUGE_H);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(GAUGE_X, GAUGE_Y, GAUGE_W, GAUGE_H);
+
+  for (let i = 0; i < 8; i++) {
+    const wy = GAUGE_Y + (i / 7) * GAUGE_H;
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(148,163,184,0.08)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(GAUGE_X + 1, wy);
+    ctx.lineTo(GAUGE_X + GAUGE_W - 1, wy);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawFish(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(-8, -8);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-8, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(-8, -5);
+  ctx.lineTo(-16, -10);
+  ctx.lineTo(-16, 10);
+  ctx.lineTo(-8, 5);
+  ctx.closePath();
+  ctx.fillStyle = '#dc2626';
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(6, -2, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.arc(7, -2, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBar(y, isHit) {
+  ctx.save();
+  const barX = GAUGE_X + 2;
+  const barW = GAUGE_W - 4;
+
+  ctx.fillStyle = isHit ? 'rgba(34,197,94,0.35)' : 'rgba(6,182,212,0.35)';
+  ctx.fillRect(barX, y, barW, BAR_H);
+
+  ctx.strokeStyle = isHit ? 'rgba(34,197,94,0.85)' : 'rgba(6,182,212,0.75)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(barX, y, barW, BAR_H);
+
+  const lineY = y + BAR_H / 2;
+  ctx.strokeStyle = isHit ? 'rgba(34,197,94,0.5)' : 'rgba(6,182,212,0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(barX + 6, lineY);
+  ctx.lineTo(barX + barW - 6, lineY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.restore();
+}
+
+function drawProgressBar(progress) {
+  ctx.save();
+
+  ctx.fillStyle = '#0d1f38';
+  ctx.fillRect(PROG_X, GAUGE_Y, PROG_W, GAUGE_H);
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(PROG_X, GAUGE_Y, PROG_W, GAUGE_H);
+
+  if (progress > 0) {
+    const fillH = (progress / 100) * (GAUGE_H - 4);
+    const fillY = GAUGE_Y + GAUGE_H - 2 - fillH;
+
+    const grad = ctx.createLinearGradient(0, fillY + fillH, 0, fillY);
+    grad.addColorStop(0, '#b45309');
+    grad.addColorStop(0.5, '#fbbf24');
+    grad.addColorStop(1, '#fde68a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(PROG_X + 2, fillY, PROG_W - 4, fillH);
+
+    if (progress > 5) {
+      ctx.fillStyle = 'rgba(251,191,36,0.2)';
+      ctx.fillRect(PROG_X + 2, fillY, (PROG_W - 4) / 2, fillH);
+    }
+  }
+
+  for (let i = 1; i < 4; i++) {
+    const ty = GAUGE_Y + (i / 4) * GAUGE_H;
+    ctx.strokeStyle = 'rgba(71,85,105,0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PROG_X + 2, ty);
+    ctx.lineTo(PROG_X + PROG_W - 2, ty);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('100', PROG_X + PROG_W / 2, GAUGE_Y - 4);
+
+  ctx.restore();
+}
+
+function drawFishingLine() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(148,163,184,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 5]);
+  ctx.beginPath();
+  ctx.moveTo(GAUGE_X + GAUGE_W / 2, 0);
+  ctx.lineTo(GAUGE_X + GAUGE_W / 2, GAUGE_Y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawHUD(progress) {
+  ctx.save();
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('CATCH PROGRESS', GAUGE_X + GAUGE_W / 2, GAUGE_Y - 10);
+
+  const pct = Math.round(progress);
+  ctx.fillStyle = progress > 60 ? '#fbbf24' : '#94a3b8';
+  ctx.font = `bold 13px system-ui`;
+  ctx.textAlign = 'right';
+  ctx.fillText(`${pct}%`, PROG_X + PROG_W, GAUGE_Y - 10);
+
+  ctx.restore();
+}
+
+function drawIdleScreen() {
+  ctx.save();
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 22px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎣', W / 2, 28);
+
+  ctx.fillStyle = '#f1f5f9';
+  ctx.font = 'bold 16px system-ui';
+  ctx.fillText('TENSION FISHING', W / 2, 50);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '12px system-ui';
+  ctx.fillText('Keep the bar on the fish!', W / 2, GAUGE_Y + GAUGE_H + 28);
+
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 13px system-ui';
+  ctx.fillText('Press SPACE or CLICK to start', W / 2, GAUGE_Y + GAUGE_H + 48);
+
+  ctx.restore();
+}
+
+function drawWinScreen() {
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(13,31,56,0.82)';
+  ctx.fillRect(GAUGE_X - 2, GAUGE_Y + GAUGE_H / 2 - 70, GAUGE_W + 4, 140);
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(GAUGE_X - 2, GAUGE_Y + GAUGE_H / 2 - 70, GAUGE_W + 4, 140);
+
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 28px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('🐟', W / 2 - 40, GAUGE_Y + GAUGE_H / 2 - 20);
+  ctx.fillText('🎉', W / 2 + 40, GAUGE_Y + GAUGE_H / 2 - 20);
+
+  ctx.fillStyle = '#fde68a';
+  ctx.font = 'bold 20px system-ui';
+  ctx.fillText('FISH CAUGHT!', W / 2, GAUGE_Y + GAUGE_H / 2 + 10);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui';
+  ctx.fillText('Press SPACE to play again', W / 2, GAUGE_Y + GAUGE_H / 2 + 38);
+
+  ctx.restore();
+}
+
+function drawLoseScreen() {
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(13,31,56,0.82)';
+  ctx.fillRect(GAUGE_X - 2, GAUGE_Y + GAUGE_H / 2 - 70, GAUGE_W + 4, 140);
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(GAUGE_X - 2, GAUGE_Y + GAUGE_H / 2 - 70, GAUGE_W + 4, 140);
+
+  ctx.fillStyle = '#ef4444';
+  ctx.font = 'bold 28px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('😔', W / 2, GAUGE_Y + GAUGE_H / 2 - 20);
+
+  ctx.fillStyle = '#fca5a5';
+  ctx.font = 'bold 18px system-ui';
+  ctx.fillText('FISH ESCAPED!', W / 2, GAUGE_Y + GAUGE_H / 2 + 10);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui';
+  ctx.fillText('Press SPACE to try again', W / 2, GAUGE_Y + GAUGE_H / 2 + 38);
+
+  ctx.restore();
+}
+
+let lastTime = null;
+
+function loop(ts) {
+  animId = requestAnimationFrame(loop);
+  const dt = lastTime === null ? 16 : Math.min(ts - lastTime, 50);
+  lastTime = ts;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (gameState === STATE.IDLE) {
+    drawGauge();
+    drawProgressBar(0);
+    drawHUD(0);
+    drawIdleScreen();
+    return;
+  }
+
+  if (gameState === STATE.WIN || gameState === STATE.LOSE) {
+    drawFishingLine();
+    drawGauge();
+    drawBar(bar.y, false);
+    drawFish(GAUGE_X + GAUGE_W / 2, fish.y);
+    drawProgressBar(catchProgress);
+    drawHUD(catchProgress);
+    if (gameState === STATE.WIN) drawWinScreen();
+    else drawLoseScreen();
+    return;
+  }
+
+  updateFish(dt);
+  updateBar(dt);
+  const hit = updateProgress(dt);
+
+  drawFishingLine();
+  drawGauge();
+  drawBar(bar.y, hit);
+  drawFish(GAUGE_X + GAUGE_W / 2, fish.y);
+  drawProgressBar(catchProgress);
+  drawHUD(catchProgress);
+
+  if (gameState === STATE.WIN) drawWinScreen();
+  else if (gameState === STATE.LOSE) drawLoseScreen();
+}
+
+function handleInputStart(e) {
+  if (e.type === 'keydown' && e.code !== 'Space') return;
+  if (e.type === 'keydown') e.preventDefault();
+
+  if (gameState === STATE.IDLE || gameState === STATE.WIN || gameState === STATE.LOSE) {
+    initGame();
+    gameState = STATE.PLAYING;
+    pickFishTarget();
+    lastTime = null;
+    return;
+  }
+  inputHeld = true;
+}
+
+function handleInputEnd(e) {
+  if (e.type === 'keyup' && e.code !== 'Space') return;
+  inputHeld = false;
+}
+
+window.addEventListener('keydown', handleInputStart);
+window.addEventListener('keyup', handleInputEnd);
+canvas.addEventListener('mousedown', handleInputStart);
+canvas.addEventListener('mouseup', handleInputEnd);
+canvas.addEventListener('mouseleave', handleInputEnd);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInputStart(e); }, { passive: false });
+canvas.addEventListener('touchend', (e) => { e.preventDefault(); handleInputEnd(e); }, { passive: false });
+
+initGame();
+animId = requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chef's Quiz Kitchen 🍳</title>
+<style>
+  /* ========== FONTS & ROOT VARIABLES ========== */
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
+
+  :root {
+    --cream: #FFF8F0;
+    --orange: #FF6B35;
+    --yellow: #FFD166;
+    --green: #06D6A0;
+    --red: #EF476F;
+    --blue: #118AB2;
+    --purple: #9B5DE5;
+    --dark: #2D2D2D;
+    --tile: #E8D5C4;
+    --wall: #F5C59A;
+    --counter: #8B6348;
+    --counter-top: #C4956A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--cream);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+  }
+
+  /* ========== GAME CONTAINER ========== */
+  #game {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ========== HUD ========== */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #FF6B35, #FF8C42);
+    z-index: 50;
+    box-shadow: 0 4px 15px rgba(255,107,53,0.4);
+    gap: 10px;
+  }
+
+  #hud h1 {
+    font-family: 'Fredoka One', cursive;
+    color: white;
+    font-size: clamp(16px, 3vw, 24px);
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+    white-space: nowrap;
+  }
+
+  .hud-box {
+    background: rgba(255,255,255,0.25);
+    border-radius: 12px;
+    padding: 5px 14px;
+    color: white;
+    font-weight: 800;
+    font-size: clamp(13px, 2.5vw, 18px);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  /* ========== PROGRESS BAR ========== */
+  #progress-wrap {
+    position: absolute;
+    top: 60px; left: 50%;
+    transform: translateX(-50%);
+    width: min(90vw, 500px);
+    z-index: 40;
+    background: rgba(255,255,255,0.8);
+    border-radius: 20px;
+    padding: 6px 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #progress-label { font-weight: 800; color: var(--dark); font-size: 13px; white-space: nowrap; }
+  #progress-bar-bg {
+    flex: 1; height: 14px;
+    background: #ddd;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), #00F5C4);
+    border-radius: 10px;
+    transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1);
+    width: 0%;
+  }
+  .order-dots {
+    display: flex; gap: 4px;
+  }
+  .order-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #ddd;
+    border: 2px solid #ccc;
+    transition: all 0.4s;
+  }
+  .order-dot.done { background: var(--green); border-color: #05b085; }
+  .order-dot.fail { background: var(--red); border-color: #c93559; }
+
+  /* ========== KITCHEN SCENE ========== */
+  #kitchen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+  }
+
+  /* Wall */
+  #wall {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 55%;
+    background: linear-gradient(180deg, #F9D9B8 0%, #F5C59A 100%);
+    overflow: hidden;
+  }
+
+  /* Tile pattern on wall */
+  #wall::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(#e8b88040 1px, transparent 1px),
+      linear-gradient(90deg, #e8b88040 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Floor */
+  #floor {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 45%;
+    background: linear-gradient(180deg, #E8D5C4 0%, #D4B896 100%);
+    overflow: hidden;
+  }
+  #floor::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(#c4a07850 2px, transparent 2px),
+      linear-gradient(90deg, #c4a07850 2px, transparent 2px);
+    background-size: 60px 60px;
+  }
+
+  /* Counter */
+  #counter {
+    position: absolute;
+    bottom: 38%;
+    left: 0; right: 0;
+    height: 70px;
+    background: var(--counter);
+    box-shadow: 0 6px 0 #6d4c34, 0 10px 20px rgba(0,0,0,0.3);
+    z-index: 5;
+  }
+  #counter-top {
+    position: absolute;
+    top: -10px; left: -5px; right: -5px;
+    height: 20px;
+    background: var(--counter-top);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  /* ========== STOVE SVG ========== */
+  #stove-wrap {
+    position: absolute;
+    left: 50%;
+    bottom: calc(38% + 60px);
+    transform: translateX(-50%);
+    width: 220px;
+    z-index: 10;
+  }
+
+  /* ========== CHEF CHARACTER ========== */
+  #chef-wrap {
+    position: absolute;
+    right: 15%;
+    bottom: calc(38% + 55px);
+    width: 100px;
+    z-index: 15;
+    transition: transform 0.3s;
+  }
+
+  /* ========== CUSTOMER ========== */
+  #customer-wrap {
+    position: absolute;
+    left: 8%;
+    bottom: calc(38% + 50px);
+    width: 90px;
+    z-index: 15;
+  }
+
+  /* ========== SPEECH BUBBLE ========== */
+  #speech-bubble {
+    position: absolute;
+    left: 14%;
+    bottom: calc(38% + 140px);
+    background: white;
+    border: 3px solid var(--dark);
+    border-radius: 18px;
+    padding: 10px 14px;
+    font-weight: 700;
+    font-size: clamp(11px, 2vw, 14px);
+    max-width: 200px;
+    z-index: 20;
+    box-shadow: 3px 3px 0 var(--dark);
+    display: none;
+    animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  #speech-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -14px;
+    left: 24px;
+    width: 0; height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 14px solid var(--dark);
+  }
+  #speech-bubble::before {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 26px;
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 12px solid white;
+    z-index: 1;
+  }
+
+  /* ========== SERVING TABLE ========== */
+  #serving-table {
+    position: absolute;
+    right: 2%;
+    bottom: calc(38% + 65px);
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+    z-index: 10;
+    align-items: center;
+  }
+  #serving-label {
+    font-family: 'Fredoka One', cursive;
+    color: var(--counter);
+    font-size: 12px;
+    text-align: center;
+  }
+  .served-dish {
+    width: 44px; height: 44px;
+    background: white;
+    border-radius: 50%;
+    border: 3px solid var(--counter);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+    animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  /* ========== PARTICLES ========== */
+  .particle {
+    position: absolute;
+    pointer-events: none;
+    z-index: 30;
+    font-size: 20px;
+    animation: floatUp 1.2s ease-out forwards;
+  }
+  .steam {
+    position: absolute;
+    pointer-events: none;
+    z-index: 30;
+    width: 14px; height: 14px;
+    background: rgba(200,200,200,0.7);
+    border-radius: 50%;
+    animation: steamRise 1.5s ease-out forwards;
+  }
+  .coin {
+    position: absolute;
+    pointer-events: none;
+    z-index: 30;
+    font-size: 22px;
+    animation: coinFly 1s ease-out forwards;
+  }
+  .smoke {
+    position: absolute;
+    pointer-events: none;
+    z-index: 30;
+    width: 16px; height: 16px;
+    background: rgba(80,80,80,0.6);
+    border-radius: 50%;
+    animation: smokeRise 1.8s ease-out forwards;
+  }
+
+  /* ========== MODAL QUIZ ========== */
+  #modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s;
+  }
+  #modal {
+    background: white;
+    border-radius: 24px;
+    padding: 28px 28px 24px;
+    width: min(92vw, 480px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35), 0 0 0 4px var(--orange);
+    animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+  }
+  #modal-emoji {
+    font-size: 48px;
+    text-align: center;
+    margin-bottom: 10px;
+    animation: wiggle 1s infinite;
+    display: block;
+  }
+  #modal-category {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 6px;
+  }
+  #modal-question {
+    font-size: clamp(15px, 3vw, 19px);
+    font-weight: 800;
+    text-align: center;
+    color: var(--dark);
+    line-height: 1.4;
+    margin-bottom: 22px;
+  }
+  #modal-choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .choice-btn {
+    background: linear-gradient(135deg, #f8f8f8, #efefef);
+    border: 2px solid #ddd;
+    border-radius: 14px;
+    padding: 12px 10px;
+    font-family: 'Nunito', sans-serif;
+    font-size: clamp(12px, 2.5vw, 15px);
+    font-weight: 700;
+    color: var(--dark);
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1.3;
+    text-align: center;
+  }
+  .choice-btn:hover {
+    transform: translateY(-2px) scale(1.03);
+    border-color: var(--orange);
+    background: linear-gradient(135deg, #fff5f0, #ffede6);
+    box-shadow: 0 4px 12px rgba(255,107,53,0.25);
+  }
+  .choice-btn.correct {
+    background: linear-gradient(135deg, #d4f5e9, #a8ecd4);
+    border-color: var(--green);
+    color: #047857;
+    animation: correctPulse 0.4s;
+  }
+  .choice-btn.wrong {
+    background: linear-gradient(135deg, #fde8ee, #f9c7d5);
+    border-color: var(--red);
+    color: #9b1239;
+    animation: shake 0.4s;
+  }
+  #modal-timer {
+    margin-top: 16px;
+    height: 6px;
+    background: #eee;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  #modal-timer-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--yellow), var(--orange), var(--red));
+    border-radius: 10px;
+    width: 100%;
+    transition: width linear;
+  }
+
+  /* ========== FEEDBACK TOAST ========== */
+  #toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: var(--dark);
+    color: white;
+    padding: 12px 28px;
+    border-radius: 40px;
+    font-weight: 800;
+    font-size: 16px;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  #toast.success { background: var(--green); }
+  #toast.fail { background: var(--red); }
+
+  /* ========== VICTORY SCREEN ========== */
+  #victory {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #FF6B35, #FFD166, #06D6A0, #118AB2);
+    background-size: 300% 300%;
+    animation: gradientShift 3s ease infinite;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    display: none;
+  }
+  #victory h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(36px, 8vw, 72px);
+    color: white;
+    text-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+    animation: bounceIn 0.8s cubic-bezier(0.34,1.56,0.64,1);
+    text-align: center;
+  }
+  #victory .trophy { font-size: clamp(60px, 12vw, 100px); animation: spin3d 2s ease-in-out infinite; }
+  #victory .score-display {
+    background: rgba(255,255,255,0.3);
+    border-radius: 24px;
+    padding: 20px 40px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255,255,255,0.5);
+  }
+  #victory .score-display h2 {
+    font-family: 'Fredoka One', cursive;
+    color: white;
+    font-size: clamp(18px, 4vw, 30px);
+  }
+  #victory .score-display p {
+    color: rgba(255,255,255,0.9);
+    font-weight: 700;
+    font-size: clamp(14px, 2.5vw, 18px);
+    margin-top: 6px;
+  }
+  #restart-btn {
+    background: white;
+    color: var(--orange);
+    border: none;
+    border-radius: 50px;
+    padding: 16px 48px;
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(18px, 4vw, 26px);
+    cursor: pointer;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.15);
+    transition: all 0.2s;
+    animation: bounceIn 1s 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  #restart-btn:hover { transform: translateY(-4px); box-shadow: 0 12px 0 rgba(0,0,0,0.15); }
+  #restart-btn:active { transform: translateY(2px); box-shadow: 0 4px 0 rgba(0,0,0,0.15); }
+
+  /* Confetti */
+  .confetti-piece {
+    position: fixed;
+    width: 10px; height: 10px;
+    z-index: 301;
+    animation: confettiFall linear forwards;
+    pointer-events: none;
+  }
+
+  /* ========== START SCREEN ========== */
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(160deg, #FF6B35 0%, #FFD166 50%, #06D6A0 100%);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  #start-screen h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(32px, 7vw, 64px);
+    color: white;
+    text-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+    text-align: center;
+    animation: float 3s ease-in-out infinite;
+  }
+  #start-screen .sub {
+    color: rgba(255,255,255,0.9);
+    font-weight: 800;
+    font-size: clamp(14px, 2.5vw, 20px);
+    text-align: center;
+    max-width: 400px;
+    padding: 0 20px;
+  }
+  #start-btn {
+    background: white;
+    color: var(--orange);
+    border: none;
+    border-radius: 50px;
+    padding: 18px 56px;
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(20px, 4vw, 28px);
+    cursor: pointer;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.15);
+    transition: all 0.2s;
+    margin-top: 10px;
+    animation: float 2s 0.5s ease-in-out infinite;
+  }
+  #start-btn:hover { transform: scale(1.05); }
+
+  /* ========== ANIMATIONS ========== */
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes popIn {
+    0% { transform: scale(0.5); opacity: 0 }
+    100% { transform: scale(1); opacity: 1 }
+  }
+  @keyframes wiggle {
+    0%,100% { transform: rotate(-5deg) }
+    50% { transform: rotate(5deg) }
+  }
+  @keyframes float {
+    0%,100% { transform: translateY(0) }
+    50% { transform: translateY(-12px) }
+  }
+  @keyframes bounceIn {
+    0% { transform: scale(0); opacity: 0 }
+    70% { transform: scale(1.1) }
+    100% { transform: scale(1); opacity: 1 }
+  }
+  @keyframes spin3d {
+    0%,100% { transform: rotateY(0deg) }
+    50% { transform: rotateY(180deg) }
+  }
+  @keyframes correctPulse {
+    0% { transform: scale(1) }
+    50% { transform: scale(1.08) }
+    100% { transform: scale(1) }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0) }
+    25% { transform: translateX(-6px) }
+    75% { transform: translateX(6px) }
+  }
+  @keyframes floatUp {
+    0% { transform: translateY(0) scale(1); opacity: 1 }
+    100% { transform: translateY(-80px) scale(1.3); opacity: 0 }
+  }
+  @keyframes steamRise {
+    0% { transform: translateY(0) scale(1); opacity: 0.8 }
+    50% { opacity: 0.5 }
+    100% { transform: translateY(-60px) scale(2.5); opacity: 0 }
+  }
+  @keyframes smokeRise {
+    0% { transform: translateY(0) scale(1); opacity: 0.7; background: rgba(80,80,80,0.6) }
+    100% { transform: translateY(-80px) scale(3); opacity: 0; background: rgba(50,50,50,0.3) }
+  }
+  @keyframes coinFly {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1 }
+    100% { transform: translateY(-60px) rotate(360deg); opacity: 0 }
+  }
+  @keyframes gradientShift {
+    0% { background-position: 0% 50% }
+    50% { background-position: 100% 50% }
+    100% { background-position: 0% 50% }
+  }
+  @keyframes confettiFall {
+    0% { transform: translateY(-20px) rotate(0deg); opacity: 1 }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0.5 }
+  }
+  @keyframes chefCook {
+    0%,100% { transform: translateY(0) }
+    25% { transform: translateY(-12px) rotate(-5deg) }
+    75% { transform: translateY(-8px) rotate(5deg) }
+  }
+  @keyframes chefSad {
+    0%,100% { transform: translateX(0) }
+    25% { transform: translateX(-5px) rotate(-3deg) }
+    75% { transform: translateX(5px) rotate(3deg) }
+  }
+  @keyframes dishAppear {
+    0% { transform: translateY(20px) scale(0); opacity: 0 }
+    100% { transform: translateY(0) scale(1); opacity: 1 }
+  }
+  @keyframes panShake {
+    0%,100% { transform: rotate(0deg) }
+    25% { transform: rotate(-10deg) }
+    75% { transform: rotate(10deg) }
+  }
+
+  .chef-cooking { animation: chefCook 0.8s ease-in-out 3 !important; }
+  .chef-sad { animation: chefSad 0.5s ease-in-out 4 !important; }
+  .pan-cooking { animation: panShake 0.4s ease-in-out 4 !important; }
+
+  /* ========== WINDOW DECORATIONS ========== */
+  .kitchen-window {
+    position: absolute;
+    top: 15px;
+    background: linear-gradient(135deg, #87CEEB, #B0E0FF);
+    border: 6px solid #8B6348;
+    border-radius: 8px;
+    box-shadow: inset 0 0 20px rgba(255,255,255,0.5), 3px 3px 0 rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  .kitchen-window::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 4px;
+    background: #8B6348;
+  }
+  .kitchen-window::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 0; bottom: 0;
+    width: 4px;
+    background: #8B6348;
+  }
+
+  .shelf {
+    position: absolute;
+    background: #8B6348;
+    border-radius: 4px;
+    box-shadow: 0 4px 0 #6d4c34;
+    z-index: 8;
+  }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 600px) {
+    #chef-wrap { right: 5%; width: 75px; }
+    #customer-wrap { left: 3%; width: 65px; }
+    #stove-wrap { width: 160px; }
+    #modal { padding: 20px 16px 18px; }
+    #modal-choices { gap: 8px; }
+    .choice-btn { padding: 10px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== START SCREEN ========== -->
+<div id="start-screen">
+  <div style="font-size:80px; animation: float 2s ease-in-out infinite;">🍳</div>
+  <h1>Dapur Kuis<br>Seru!</h1>
+  <p class="sub">Jawab soal-soal seru untuk memasak dan melayani pelangganmu! 🍽️</p>
+  <button id="start-btn" onclick="startGame()">Ayo Masak! 🧑‍🍳</button>
+</div>
+
+<!-- ========== MAIN GAME ========== -->
+<div id="game">
+
+  <!-- HUD -->
+  <div id="hud">
+    <h1>🍳 Dapur Chef</h1>
+    <div class="hud-box">⭐ <span id="score-display">0</span></div>
+    <div class="hud-box">🍽️ <span id="order-display">0/8</span></div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress-wrap">
+    <span id="progress-label">Pesanan:</span>
+    <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+    <div class="order-dots" id="order-dots"></div>
+  </div>
+
+  <!-- Kitchen Scene -->
+  <div id="kitchen">
+    <!-- Wall -->
+    <div id="wall">
+      <!-- Windows -->
+      <div class="kitchen-window" style="left:5%;top:20px;width:110px;height:80px;"></div>
+      <div class="kitchen-window" style="right:5%;top:20px;width:110px;height:80px;"></div>
+
+      <!-- Shelf -->
+      <div class="shelf" style="left:18%;top:90px;width:130px;height:12px;z-index:8;">
+        <span style="position:absolute;top:-22px;left:5px;font-size:18px;">🧂</span>
+        <span style="position:absolute;top:-22px;left:40px;font-size:18px;">🫙</span>
+        <span style="position:absolute;top:-24px;left:75px;font-size:20px;">🍶</span>
+      </div>
+      <div class="shelf" style="right:20%;top:85px;width:100px;height:12px;z-index:8;">
+        <span style="position:absolute;top:-24px;left:5px;font-size:20px;">🌿</span>
+        <span style="position:absolute;top:-22px;left:38px;font-size:18px;">🫒</span>
+      </div>
+    </div>
+
+    <!-- Floor -->
+    <div id="floor"></div>
+
+    <!-- Counter -->
+    <div id="counter"><div id="counter-top"></div></div>
+
+    <!-- Stove -->
+    <div id="stove-wrap">
+      <svg id="stove-svg" viewBox="0 0 220 160" xmlns="http://www.w3.org/2000/svg">
+        <!-- Stove body -->
+        <rect x="10" y="60" width="200" height="95" rx="10" fill="#555" stroke="#333" stroke-width="2"/>
+        <rect x="10" y="55" width="200" height="18" rx="6" fill="#666" stroke="#333" stroke-width="2"/>
+        <!-- Burners -->
+        <ellipse cx="80" cy="55" rx="42" ry="10" fill="#333" stroke="#222" stroke-width="1.5"/>
+        <ellipse cx="80" cy="55" rx="30" ry="7" fill="#444"/>
+        <ellipse cx="80" cy="55" rx="18" ry="4" fill="#222"/>
+        <ellipse cx="150" cy="55" rx="30" ry="7" fill="#333" stroke="#222" stroke-width="1.5"/>
+        <ellipse cx="150" cy="55" rx="20" ry="5" fill="#444"/>
+        <!-- Knobs -->
+        <circle cx="40" cy="100" r="10" fill="#888" stroke="#555" stroke-width="1.5"/>
+        <circle cx="40" cy="100" r="5" fill="#aaa"/>
+        <circle cx="80" cy="100" r="10" fill="#888" stroke="#555" stroke-width="1.5"/>
+        <circle cx="80" cy="100" r="5" fill="#aaa"/>
+        <circle cx="120" cy="100" r="10" fill="#888" stroke="#555" stroke-width="1.5"/>
+        <circle cx="120" cy="100" r="5" fill="#aaa"/>
+        <!-- Oven door -->
+        <rect x="55" y="118" width="110" height="30" rx="5" fill="#444" stroke="#333" stroke-width="1.5"/>
+        <rect x="65" y="123" width="90" height="20" rx="3" fill="#333"/>
+        <line x1="80" y1="128" x2="80" y2="138" stroke="#555" stroke-width="1.5"/>
+        <!-- Pan on left burner -->
+        <g id="pan-group" class="">
+          <!-- Pan -->
+          <ellipse cx="80" cy="43" rx="48" ry="14" fill="#888" stroke="#555" stroke-width="2"/>
+          <ellipse cx="80" cy="43" rx="38" ry="10" fill="#999"/>
+          <!-- Handle -->
+          <rect x="122" y="38" width="40" height="10" rx="5" fill="#555" stroke="#444" stroke-width="1.5"/>
+          <!-- Flame when cooking -->
+          <g id="flame" style="opacity:0;transition:opacity 0.3s;">
+            <ellipse cx="60" cy="56" rx="6" ry="9" fill="#FF6B35" opacity="0.8"/>
+            <ellipse cx="75" cy="58" rx="5" ry="8" fill="#FFD166" opacity="0.8"/>
+            <ellipse cx="90" cy="57" rx="6" ry="9" fill="#FF6B35" opacity="0.8"/>
+            <ellipse cx="65" cy="57" rx="4" ry="6" fill="#FFD166" opacity="0.9"/>
+            <ellipse cx="82" cy="56" rx="4" ry="6" fill="#fff" opacity="0.5"/>
+          </g>
+          <!-- Food in pan (shown after correct answer) -->
+          <text id="pan-food" x="80" y="50" text-anchor="middle" font-size="18" opacity="0" style="transition:opacity 0.5s;">🥚</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Chef SVG -->
+    <div id="chef-wrap">
+      <svg id="chef-svg" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
+        <!-- Chef hat -->
+        <ellipse cx="50" cy="35" rx="28" ry="10" fill="white" stroke="#ddd" stroke-width="1.5"/>
+        <rect x="30" y="5" width="40" height="32" rx="8" fill="white" stroke="#ddd" stroke-width="1.5"/>
+        <rect x="27" y="32" width="46" height="10" rx="3" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
+        <!-- Head -->
+        <circle cx="50" cy="60" r="24" fill="#FDBCB4" stroke="#e8a99e" stroke-width="1.5"/>
+        <!-- Eyes -->
+        <circle cx="42" cy="55" r="3.5" fill="white"/>
+        <circle cx="58" cy="55" r="3.5" fill="white"/>
+        <circle id="chef-eye-l" cx="43" cy="55" r="2" fill="#333"/>
+        <circle id="chef-eye-r" cx="59" cy="55" r="2" fill="#333"/>
+        <!-- Eyebrows -->
+        <path id="chef-brow-l" d="M38 50 Q42 47 46 50" stroke="#8B6348" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path id="chef-brow-r" d="M54 50 Q58 47 62 50" stroke="#8B6348" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- Mouth -->
+        <path id="chef-mouth" d="M44 66 Q50 72 56 66" stroke="#c87563" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <!-- Cheeks -->
+        <circle cx="36" cy="63" r="5" fill="#FFB3A7" opacity="0.5"/>
+        <circle cx="64" cy="63" r="5" fill="#FFB3A7" opacity="0.5"/>
+        <!-- Body / uniform -->
+        <rect x="22" y="82" width="56" height="60" rx="10" fill="white" stroke="#ddd" stroke-width="1.5"/>
+        <!-- Buttons -->
+        <circle cx="50" cy="95" r="3" fill="#ddd"/>
+        <circle cx="50" cy="108" r="3" fill="#ddd"/>
+        <circle cx="50" cy="121" r="3" fill="#ddd"/>
+        <!-- Neck / scarf -->
+        <rect x="38" y="80" width="24" height="10" rx="4" fill="#f0f0f0"/>
+        <rect x="40" y="80" width="20" height="8" rx="3" fill="#FF6B35"/>
+        <!-- Arms -->
+        <path d="M22 90 Q5 100 8 118" stroke="white" stroke-width="14" fill="none" stroke-linecap="round"/>
+        <path d="M22 90 Q5 100 8 118" stroke="#ddd" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.4"/>
+        <path d="M78 90 Q95 100 92 118" stroke="white" stroke-width="14" fill="none" stroke-linecap="round"/>
+        <path d="M78 90 Q95 100 92 118" stroke="#ddd" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.4"/>
+        <!-- Hands -->
+        <circle cx="9" cy="120" r="8" fill="#FDBCB4" stroke="#e8a99e" stroke-width="1"/>
+        <circle cx="91" cy="120" r="8" fill="#FDBCB4" stroke="#e8a99e" stroke-width="1"/>
+        <!-- Spatula in right hand -->
+        <rect x="87" y="100" width="5" height="28" rx="2" fill="#8B6348"/>
+        <rect x="84" y="96" width="11" height="8" rx="2" fill="#aaa"/>
+        <!-- Legs -->
+        <rect x="30" y="138" width="18" height="22" rx="5" fill="#555"/>
+        <rect x="52" y="138" width="18" height="22" rx="5" fill="#555"/>
+        <!-- Shoes -->
+        <ellipse cx="39" cy="160" rx="14" ry="6" fill="#333"/>
+        <ellipse cx="61" cy="160" rx="14" ry="6" fill="#333"/>
+      </svg>
+    </div>
+
+    <!-- Customer -->
+    <div id="customer-wrap">
+      <svg id="customer-svg" viewBox="0 0 90 150" xmlns="http://www.w3.org/2000/svg">
+        <!-- Hair -->
+        <ellipse cx="45" cy="42" rx="26" ry="28" fill="#8B4513"/>
+        <!-- Head -->
+        <circle cx="45" cy="52" r="22" fill="#FDBCB4" stroke="#e8a99e" stroke-width="1.5"/>
+        <!-- Eyes -->
+        <circle cx="38" cy="47" r="3" fill="white"/>
+        <circle cx="52" cy="47" r="3" fill="white"/>
+        <circle id="cust-eye-l" cx="39" cy="47" r="1.8" fill="#333"/>
+        <circle id="cust-eye-r" cx="53" cy="47" r="1.8" fill="#333"/>
+        <!-- Eyebrows -->
+        <path id="cust-brow-l" d="M34 42 Q38 39 42 42" stroke="#5C3317" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path id="cust-brow-r" d="M48 42 Q52 39 56 42" stroke="#5C3317" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <!-- Mouth -->
+        <path id="cust-mouth" d="M39 58 Q45 63 51 58" stroke="#c87563" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- Cheeks -->
+        <circle cx="31" cy="56" r="5" fill="#FFB3A7" opacity="0.4"/>
+        <circle cx="59" cy="56" r="5" fill="#FFB3A7" opacity="0.4"/>
+        <!-- Body -->
+        <rect x="18" y="72" width="54" height="55" rx="10" fill="#4B9CD3"/>
+        <!-- Collar -->
+        <path d="M36 72 L45 85 L54 72" stroke="#3a7ab0" stroke-width="2" fill="#3a7ab0"/>
+        <!-- Arms -->
+        <path d="M18 82 Q4 92 6 108" stroke="#4B9CD3" stroke-width="12" fill="none" stroke-linecap="round"/>
+        <path d="M72 82 Q86 92 84 108" stroke="#4B9CD3" stroke-width="12" fill="none" stroke-linecap="round"/>
+        <!-- Hands -->
+        <circle cx="7" cy="110" r="7" fill="#FDBCB4"/>
+        <circle cx="83" cy="110" r="7" fill="#FDBCB4"/>
+        <!-- Legs -->
+        <rect x="26" y="124" width="16" height="20" rx="5" fill="#2D4B7A"/>
+        <rect x="48" y="124" width="16" height="20" rx="5" fill="#2D4B7A"/>
+        <ellipse cx="34" cy="144" rx="13" ry="5" fill="#333"/>
+        <ellipse cx="56" cy="144" rx="13" ry="5" fill="#333"/>
+      </svg>
+    </div>
+
+    <!-- Speech Bubble -->
+    <div id="speech-bubble">🍜 Aku mau makan!</div>
+
+    <!-- Serving Table -->
+    <div id="serving-table">
+      <span id="serving-label">✅ Disajikan</span>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Victory -->
+<div id="victory">
+  <div class="trophy">🏆</div>
+  <h1>Chef Terbaik!</h1>
+  <div class="score-display">
+    <h2>Skor Akhir: <span id="final-score">0</span> poin</h2>
+    <p id="final-message">Kamu luar biasa!</p>
+  </div>
+  <button id="restart-btn" onclick="restartGame()">Main Lagi 🍳</button>
+</div>
+
+<!-- Quiz Modal -->
+<div id="modal-overlay" style="display:none;">
+  <div id="modal">
+    <span id="modal-emoji">🍳</span>
+    <div id="modal-category">TANTANGAN MEMASAK</div>
+    <div id="modal-question">Apa jawabannya?</div>
+    <div id="modal-choices">
+      <button class="choice-btn" onclick="selectAnswer(0)">A</button>
+      <button class="choice-btn" onclick="selectAnswer(1)">B</button>
+      <button class="choice-btn" onclick="selectAnswer(2)">C</button>
+      <button class="choice-btn" onclick="selectAnswer(3)">D</button>
+    </div>
+    <div id="modal-timer"><div id="modal-timer-bar"></div></div>
+  </div>
+</div>
+
+<script>
+// =============================================
+//  QUIZ QUESTIONS — Edit freely!
+// =============================================
+const QUESTIONS = [
+  {
+    emoji: "🔢",
+    category: "Matematika",
+    question: "Berapakah hasil dari 7 × 8?",
+    choices: ["54", "56", "63", "64"],
+    correct: 1,
+    dish: "🍜",
+    order: "semangkuk mie hangat!"
+  },
+  {
+    emoji: "🌍",
+    category: "IPS - Geografi",
+    question: "Apa ibu kota negara Indonesia?",
+    choices: ["Surabaya", "Bandung", "Jakarta", "Medan"],
+    correct: 2,
+    dish: "🎂",
+    order: "kue ulang tahun spesial!"
+  },
+  {
+    emoji: "🐸",
+    category: "IPA - Hewan",
+    question: "Hewan apakah yang mengalami metamorfosis sempurna?",
+    choices: ["Ayam", "Kucing", "Katak", "Ikan"],
+    correct: 2,
+    dish: "🥗",
+    order: "salad sayuran segar!"
+  },
+  {
+    emoji: "🌞",
+    category: "IPA - Tata Surya",
+    question: "Planet apakah yang paling dekat dengan Matahari?",
+    choices: ["Venus", "Bumi", "Mars", "Merkurius"],
+    correct: 3,
+    dish: "🍕",
+    order: "pizza panas yang lezat!"
+  },
+  {
+    emoji: "📚",
+    category: "Bahasa Indonesia",
+    question: "Apa arti kata 'gigih' dalam Bahasa Indonesia?",
+    choices: ["Malas sekali", "Tidak mau berusaha", "Tekun dan pantang menyerah", "Mudah putus asa"],
+    correct: 2,
+    dish: "🥩",
+    order: "steak daging panggang!"
+  },
+  {
+    emoji: "🔢",
+    category: "Matematika",
+    question: "Berapakah 25% dari 200?",
+    choices: ["25", "40", "50", "75"],
+    correct: 2,
+    dish: "🥚",
+    order: "telur dadar spesial!"
+  },
+  {
+    emoji: "🌿",
+    category: "IPA - Tumbuhan",
+    question: "Proses tumbuhan membuat makanan sendiri menggunakan sinar matahari disebut?",
+    choices: ["Respirasi", "Fotosintesis", "Evaporasi", "Fermentasi"],
+    correct: 1,
+    dish: "🍛",
+    order: "nasi kuning harum!"
+  },
+  {
+    emoji: "🗺️",
+    category: "IPS - Geografi",
+    question: "Pulau apakah yang paling padat penduduknya di Indonesia?",
+    choices: ["Kalimantan", "Sulawesi", "Sumatera", "Jawa"],
+    correct: 3,
+    dish: "🍣",
+    order: "hidangan istimewa!"
+  },
+  {
+    emoji: "🧲",
+    category: "IPA - Fisika",
+    question: "Benda apakah yang dapat ditarik oleh magnet?",
+    choices: ["Kayu", "Plastik", "Besi", "Karet"],
+    correct: 2,
+    dish: "🧆",
+    order: "gorengan renyah panas!"
+  },
+  {
+    emoji: "📖",
+    category: "Sejarah Indonesia",
+    question: "Siapakah proklamator kemerdekaan Indonesia?",
+    choices: ["Soeharto & Habibie", "Soekarno & Hatta", "Sudirman & Nasution", "Diponegoro & Pattimura"],
+    correct: 1,
+    dish: "🥐",
+    order: "roti bakar spesial!"
+  },
+  {
+    emoji: "🔢",
+    category: "Matematika",
+    question: "Berapakah keliling persegi dengan sisi 6 cm?",
+    choices: ["12 cm", "18 cm", "24 cm", "36 cm"],
+    correct: 2,
+    dish: "🥦",
+    order: "tumis sayuran sehat!"
+  },
+  {
+    emoji: "🌊",
+    category: "IPA - Siklus Air",
+    question: "Proses penguapan air laut menjadi awan disebut?",
+    choices: ["Kondensasi", "Presipitasi", "Evaporasi", "Infiltrasi"],
+    correct: 2,
+    dish: "🍫",
+    order: "cokelat hangat manis!"
+  },
+  {
+    emoji: "🐋",
+    category: "IPA - Hewan",
+    question: "Hewan manakah yang termasuk mamalia?",
+    choices: ["Buaya", "Hiu", "Paus", "Kadal"],
+    correct: 2,
+    dish: "🍱",
+    order: "bento makan siang!"
+  },
+  {
+    emoji: "🗓️",
+    category: "Sejarah Indonesia",
+    question: "Kapan Indonesia merdeka?",
+    choices: ["17 Agustus 1945", "17 Agustus 1950", "1 Juni 1945", "28 Oktober 1928"],
+    correct: 0,
+    dish: "🎉",
+    order: "kue kemerdekaan!"
+  },
+  {
+    emoji: "🔢",
+    category: "Matematika",
+    question: "Berapakah 144 ÷ 12?",
+    choices: ["10", "11", "12", "13"],
+    correct: 2,
+    dish: "🍦",
+    order: "es krim vanilla segar!"
+  }
+];
+
+// =============================================
+//  GAME STATE
+// =============================================
+const TOTAL_ORDERS = 8;
+let score = 0;
+let currentOrder = 0;
+let correctAnswers = 0;
+let questionPool = [];
+let currentQuestion = null;
+let timerInterval = null;
+let answered = false;
+let gameActive = false;
+
+const orderResults = []; // true/false per order
+
+// =============================================
+//  INIT
+// =============================================
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  gameActive = true;
+  score = 0;
+  currentOrder = 0;
+  correctAnswers = 0;
+  orderResults.length = 0;
+
+  // Shuffle and pick questions
+  questionPool = shuffle([...QUESTIONS]).slice(0, TOTAL_ORDERS);
+
+  updateHUD();
+  buildOrderDots();
+  clearServedDishes();
+  resetChef();
+  resetCustomer();
+
+  setTimeout(() => nextOrder(), 800);
+}
+
+function restartGame() {
+  document.getElementById('victory').style.display = 'none';
+  document.querySelectorAll('.confetti-piece').forEach(el => el.remove());
+  startGame();
+}
+
+// =============================================
+//  ORDER FLOW
+// =============================================
+function nextOrder() {
+  if (currentOrder >= TOTAL_ORDERS) {
+    endGame();
+    return;
+  }
+  currentQuestion = questionPool[currentOrder];
+
+  // Show speech bubble with order
+  const bubble = document.getElementById('speech-bubble');
+  bubble.innerHTML = `🍽️ Aku mau pesan ${currentQuestion.order}`;
+  bubble.style.display = 'block';
+  bubble.style.animation = 'none';
+  void bubble.offsetWidth;
+  bubble.style.animation = 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+
+  resetChef();
+  resetCustomer();
+
+  setTimeout(() => showQuizModal(), 1400);
+}
+
+// =============================================
+//  QUIZ MODAL
+// =============================================
+function showQuizModal() {
+  const q = currentQuestion;
+  document.getElementById('modal-emoji').textContent = q.emoji;
+  document.getElementById('modal-category').textContent = q.category;
+  document.getElementById('modal-question').textContent = q.question;
+
+  const btns = document.querySelectorAll('.choice-btn');
+  btns.forEach((btn, i) => {
+    btn.textContent = q.choices[i];
+    btn.className = 'choice-btn';
+    btn.disabled = false;
+  });
+
+  answered = false;
+  document.getElementById('modal-overlay').style.display = 'flex';
+
+  // Timer (15 seconds)
+  startTimer(15);
+}
+
+function startTimer(seconds) {
+  clearInterval(timerInterval);
+  const bar = document.getElementById('modal-timer-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  void bar.offsetWidth;
+  bar.style.transition = `width ${seconds}s linear`;
+  bar.style.width = '0%';
+
+  let remaining = seconds;
+  timerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(timerInterval);
+      if (!answered) {
+        autoFail();
+      }
+    }
+  }, 1000);
+}
+
+function autoFail() {
+  answered = true;
+  clearInterval(timerInterval);
+  // Highlight correct answer
+  const btns = document.querySelectorAll('.choice-btn');
+  btns.forEach(b => b.disabled = true);
+  btns[currentQuestion.correct].classList.add('correct');
+  setTimeout(() => closeModal(false), 1000);
+}
+
+function selectAnswer(idx) {
+  if (answered) return;
+  answered = true;
+  clearInterval(timerInterval);
+
+  const btns = document.querySelectorAll('.choice-btn');
+  btns.forEach(b => b.disabled = true);
+
+  const isCorrect = (idx === currentQuestion.correct);
+
+  if (isCorrect) {
+    btns[idx].classList.add('correct');
+  } else {
+    btns[idx].classList.add('wrong');
+    btns[currentQuestion.correct].classList.add('correct');
+  }
+
+  setTimeout(() => closeModal(isCorrect), 800);
+}
+
+function closeModal(isCorrect) {
+  document.getElementById('modal-overlay').style.display = 'none';
+  document.getElementById('speech-bubble').style.display = 'none';
+
+  if (isCorrect) {
+    handleCorrect();
+  } else {
+    handleWrong();
+  }
+}
+
+// =============================================
+//  CORRECT ANSWER
+// =============================================
+function handleCorrect() {
+  const dish = currentQuestion.dish;
+
+  score += 100;
+  correctAnswers++;
+  orderResults.push(true);
+  updateOrderDot(currentOrder, true);
+
+  showToast('✅ Benar! +100 poin', 'success');
+
+  // Chef cooks animation
+  const chefWrap = document.getElementById('chef-wrap');
+  chefWrap.classList.add('chef-cooking');
+  setTimeout(() => chefWrap.classList.remove('chef-cooking'), 2500);
+
+  // Pan shake & flame on
+  const panGroup = document.getElementById('pan-group');
+  panGroup.classList.add('pan-cooking');
+  setTimeout(() => panGroup.classList.remove('pan-cooking'), 1600);
+
+  document.getElementById('flame').style.opacity = '1';
+  document.getElementById('pan-food').textContent = dish;
+  document.getElementById('pan-food').style.opacity = '1';
+
+  // Ingredient particles jumping in
+  spawnIngredientParticles(dish);
+
+  // Steam after 1.5s
+  setTimeout(() => spawnSteam(), 1500);
+
+  // Customer smile
+  setTimeout(() => customerSmile(), 2000);
+
+  // Coins
+  setTimeout(() => spawnCoins(), 2200);
+
+  // Sparkles
+  setTimeout(() => spawnSparkles(), 1000);
+
+  // Finished dish on serving table
+  setTimeout(() => addServedDish(dish), 2800);
+
+  // Reset and next order
+  setTimeout(() => {
+    document.getElementById('flame').style.opacity = '0';
+    document.getElementById('pan-food').style.opacity = '0';
+    currentOrder++;
+    updateHUD();
+    nextOrder();
+  }, 3600);
+}
+
+// =============================================
+//  WRONG ANSWER
+// =============================================
+function handleWrong() {
+  orderResults.push(false);
+  updateOrderDot(currentOrder, false);
+
+  showToast('❌ Salah! Coba lagi ya!', 'fail');
+
+  // Chef sad
+  const chefWrap = document.getElementById('chef-wrap');
+  chefWrap.classList.add('chef-sad');
+  setTimeout(() => chefWrap.classList.remove('chef-sad'), 2000);
+
+  // Burnt food
+  document.getElementById('pan-food').textContent = '🔥';
+  document.getElementById('pan-food').style.opacity = '1';
+
+  // Smoke
+  setTimeout(() => spawnSmoke(), 500);
+
+  // Customer frown
+  setTimeout(() => customerFrown(), 1000);
+
+  // Reset and next order
+  setTimeout(() => {
+    document.getElementById('pan-food').style.opacity = '0';
+    currentOrder++;
+    updateHUD();
+    nextOrder();
+  }, 3000);
+}
+
+// =============================================
+//  END GAME / VICTORY
+// =============================================
+function endGame() {
+  const pct = Math.round((correctAnswers / TOTAL_ORDERS) * 100);
+  let msg;
+  if (pct === 100) msg = "🌟 Sempurna! Kamu jenius sejati!";
+  else if (pct >= 75) msg = "👨‍🍳 Luar biasa! Kamu sangat pintar!";
+  else if (pct >= 50) msg = "🍽️ Lumayan! Terus belajar ya!";
+  else msg = "📚 Ayo belajar lebih giat lagi!";
+
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-message').textContent = msg;
+
+  setTimeout(() => {
+    document.getElementById('victory').style.display = 'flex';
+    spawnConfetti();
+  }, 600);
+}
+
+// =============================================
+//  PARTICLES & EFFECTS
+// =============================================
+function spawnIngredientParticles(emoji) {
+  const ingredients = ['🥕', '🧅', '🌶️', '🧄', emoji];
+  const panRect = document.getElementById('stove-wrap').getBoundingClientRect();
+
+  ingredients.forEach((ing, i) => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'particle';
+      el.textContent = ing;
+      el.style.left = (panRect.left + 40 + Math.random() * 80) + 'px';
+      el.style.top = (panRect.top + 10) + 'px';
+      el.style.animationDuration = (0.8 + Math.random() * 0.4) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1500);
+    }, i * 120);
+  });
+}
+
+function spawnSteam() {
+  const panRect = document.getElementById('stove-wrap').getBoundingClientRect();
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'steam';
+      el.style.left = (panRect.left + 40 + Math.random() * 80) + 'px';
+      el.style.top = (panRect.top) + 'px';
+      el.style.animationDuration = (1 + Math.random() * 0.8) + 's';
+      el.style.width = el.style.height = (10 + Math.random() * 10) + 'px';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2000);
+    }, i * 150);
+  }
+}
+
+function spawnSmoke() {
+  const panRect = document.getElementById('stove-wrap').getBoundingClientRect();
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'smoke';
+      el.style.left = (panRect.left + 30 + Math.random() * 100) + 'px';
+      el.style.top = (panRect.top + 10) + 'px';
+      el.style.animationDuration = (1.2 + Math.random() * 0.6) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2500);
+    }, i * 100);
+  }
+}
+
+function spawnCoins() {
+  const custRect = document.getElementById('customer-wrap').getBoundingClientRect();
+  const coins = ['🪙', '💰', '🪙'];
+  coins.forEach((c, i) => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'coin';
+      el.textContent = c;
+      el.style.left = (custRect.left + 10 + Math.random() * 50) + 'px';
+      el.style.top = (custRect.top + 20) + 'px';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1200);
+    }, i * 180);
+  });
+}
+
+function spawnSparkles() {
+  const panRect = document.getElementById('stove-wrap').getBoundingClientRect();
+  const sparkles = ['✨', '⭐', '💫', '✨', '⭐'];
+  sparkles.forEach((s, i) => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'particle';
+      el.textContent = s;
+      el.style.left = (panRect.left + 10 + Math.random() * 160) + 'px';
+      el.style.top = (panRect.top - 10 + Math.random() * 40) + 'px';
+      el.style.animationDuration = (0.9 + Math.random() * 0.5) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1600);
+    }, i * 100);
+  });
+}
+
+function spawnConfetti() {
+  const colors = ['#FF6B35','#FFD166','#06D6A0','#118AB2','#EF476F','#9B5DE5','#fff'];
+  const shapes = ['50%', '0%', '50% 0'];
+  for (let i = 0; i < 80; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.left = Math.random() * 100 + 'vw';
+      el.style.top = '-20px';
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      el.style.borderRadius = shapes[Math.floor(Math.random() * shapes.length)];
+      el.style.width = (6 + Math.random() * 10) + 'px';
+      el.style.height = (6 + Math.random() * 14) + 'px';
+      el.style.animationDuration = (2 + Math.random() * 3) + 's';
+      el.style.animationDelay = (Math.random() * 2) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 6000);
+    }, i * 30);
+  }
+}
+
+// =============================================
+//  CHARACTER EXPRESSIONS
+// =============================================
+function resetChef() {
+  // Happy default expression
+  document.getElementById('chef-mouth').setAttribute('d', 'M44 66 Q50 72 56 66');
+  document.getElementById('chef-brow-l').setAttribute('d', 'M38 50 Q42 47 46 50');
+  document.getElementById('chef-brow-r').setAttribute('d', 'M54 50 Q58 47 62 50');
+}
+
+function customerSmile() {
+  document.getElementById('cust-mouth').setAttribute('d', 'M37 57 Q45 64 53 57');
+  document.getElementById('cust-brow-l').setAttribute('d', 'M34 42 Q38 39 42 42');
+  document.getElementById('cust-brow-r').setAttribute('d', 'M48 42 Q52 39 56 42');
+}
+
+function customerFrown() {
+  document.getElementById('cust-mouth').setAttribute('d', 'M37 62 Q45 57 53 62');
+  document.getElementById('cust-brow-l').setAttribute('d', 'M34 44 Q38 41 42 44');
+  document.getElementById('cust-brow-r').setAttribute('d', 'M48 44 Q52 41 56 44');
+}
+
+function resetCustomer() {
+  document.getElementById('cust-mouth').setAttribute('d', 'M39 58 Q45 63 51 58');
+  document.getElementById('cust-brow-l').setAttribute('d', 'M34 42 Q38 39 42 42');
+  document.getElementById('cust-brow-r').setAttribute('d', 'M48 42 Q52 39 56 42');
+}
+
+// =============================================
+//  HUD & PROGRESS
+// =============================================
+function updateHUD() {
+  document.getElementById('score-display').textContent = score;
+  document.getElementById('order-display').textContent = `${currentOrder}/${TOTAL_ORDERS}`;
+  const pct = (currentOrder / TOTAL_ORDERS) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function buildOrderDots() {
+  const container = document.getElementById('order-dots');
+  container.innerHTML = '';
+  for (let i = 0; i < TOTAL_ORDERS; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'order-dot';
+    dot.id = `dot-${i}`;
+    container.appendChild(dot);
+  }
+}
+
+function updateOrderDot(idx, success) {
+  const dot = document.getElementById(`dot-${idx}`);
+  if (dot) {
+    dot.classList.add(success ? 'done' : 'fail');
+  }
+}
+
+function addServedDish(emoji) {
+  const table = document.getElementById('serving-table');
+  const dish = document.createElement('div');
+  dish.className = 'served-dish';
+  dish.textContent = emoji;
+  dish.style.animation = 'dishAppear 0.5s cubic-bezier(0.34,1.56,0.64,1)';
+  table.insertBefore(dish, document.getElementById('serving-label').nextSibling);
+}
+
+function clearServedDishes() {
+  const table = document.getElementById('serving-table');
+  table.querySelectorAll('.served-dish').forEach(d => d.remove());
+}
+
+// =============================================
+//  TOAST NOTIFICATION
+// =============================================
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `show ${type}`;
+  setTimeout(() => { toast.className = ''; }, 2200);
+}
+
+// =============================================
+//  UTILITIES
+// =============================================
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+</script>
+</body>
+</html>
