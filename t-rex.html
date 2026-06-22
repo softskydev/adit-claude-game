@@ -1,596 +1,1246 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dino Dig: Excavation Adventure</title>
-    <style>
-        /* =========================================
-           CSS VARIABLES & GLOBAL STYLES
-           ========================================= */
-        :root {
-            --primary: #4CAF50;
-            --primary-dark: #388E3C;
-            --secondary: #FFC107;
-            --bg-top: #87CEEB;
-            --bg-bottom: #8D6E63;
-            --dirt: #5D4037;
-            --dirt-light: #795548;
-            --bone: #F5F5DC;
-            --rock: #9E9E9E;
-            --text-main: #333;
-            --text-light: #fff;
-            --font-main: 'Segoe UI', system-ui, sans-serif;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dino Dig — Fossil Excavation Quiz</title>
+<style>
+  /* ============================================================
+     CSS VARIABLES & RESET
+  ============================================================ */
+  :root {
+    --sand-light: #f5d98a;
+    --sand-mid: #e6b84a;
+    --sand-dark: #c89030;
+    --soil-top: #8B6914;
+    --soil-mid: #6b4f0a;
+    --soil-deep: #4a3206;
+    --sky-top: #87ceeb;
+    --sky-bot: #fde68a;
+    --rock-gray: #9ca3af;
+    --bone-white: #f5f0e8;
+    --bone-shadow: #c8b99a;
+    --accent-gold: #fbbf24;
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --text-dark: #1c1408;
+    --text-light: #fff8ee;
+    --modal-bg: rgba(28, 20, 8, 0.75);
+  }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        body {
-            font-family: var(--font-main);
-            background: linear-gradient(to bottom, var(--bg-top) 0%, var(--bg-top) 30%, var(--bg-bottom) 30%, var(--bg-bottom) 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            touch-action: manipulation;
-        }
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--sky-top);
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
 
-        /* =========================================
-           UI HEADER
-           ========================================= */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            z-index: 10;
-        }
+  /* ============================================================
+     GAME SCENE LAYOUT
+  ============================================================ */
+  #game-scene {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 
-        .stat-box {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: var(--text-main);
-            background: var(--secondary);
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: 2px solid #FF9800;
-        }
+  /* SKY */
+  #sky {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 42%;
+    background: linear-gradient(180deg, #5bb3e8 0%, #a8d8f0 60%, #fde68a 100%);
+    z-index: 0;
+  }
 
-        button.btn-restart {
-            background-color: #F44336;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 1rem;
-            font-weight: bold;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 4px #D32F2F;
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
+  /* SUN */
+  #sun {
+    position: absolute;
+    top: 5%; right: 8%;
+    width: clamp(50px,8vw,90px);
+    height: clamp(50px,8vw,90px);
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, #fff7aa, #fbbf24 50%, #f59e0b);
+    box-shadow: 0 0 30px 10px rgba(251,191,36,0.45);
+    animation: sun-pulse 4s ease-in-out infinite;
+    z-index: 1;
+  }
+  @keyframes sun-pulse {
+    0%,100%{box-shadow:0 0 30px 10px rgba(251,191,36,0.45)}
+    50%{box-shadow:0 0 55px 22px rgba(251,191,36,0.6)}
+  }
 
-        button.btn-restart:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 #D32F2F;
-        }
+  /* CLOUDS */
+  .cloud {
+    position: absolute;
+    background: white;
+    border-radius: 50px;
+    opacity: 0.85;
+    z-index: 1;
+  }
+  .cloud::before,.cloud::after {
+    content: '';
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+  }
+  #cloud1 { width: 100px; height: 36px; top: 8%; left: 5%; animation: drift 22s linear infinite; }
+  #cloud1::before { width: 56px; height: 56px; top: -28px; left: 14px; }
+  #cloud1::after  { width: 38px; height: 38px; top: -18px; left: 45px; }
+  #cloud2 { width: 75px; height: 28px; top: 15%; left: 30%; animation: drift 30s linear infinite 6s; }
+  #cloud2::before { width: 42px; height: 42px; top: -22px; left: 10px; }
+  #cloud2::after  { width: 30px; height: 30px; top: -14px; left: 35px; }
+  @keyframes drift {
+    0%   { transform: translateX(0); }
+    50%  { transform: translateX(25px); }
+    100% { transform: translateX(0); }
+  }
 
-        /* =========================================
-           EXCAVATION SITE (GAME AREA)
-           ========================================= */
-        main {
-            flex-grow: 1;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+  /* GROUND LAYERS */
+  #ground-surface {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 62%;
+    z-index: 2;
+  }
 
-        .dig-site {
-            width: 100%;
-            max-width: 800px;
-            height: 60vh;
-            background: radial-gradient(circle, var(--dirt-light) 0%, var(--dirt) 100%);
-            border-radius: 20px;
-            border: 8px solid #4E342E;
-            box-shadow: inset 0 0 30px rgba(0,0,0,0.5), 0 10px 20px rgba(0,0,0,0.3);
-            position: relative;
-            overflow: hidden;
-        }
+  /* Grassy top strip */
+  .grass-strip {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 28px;
+    background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
+    border-radius: 0 0 0 0;
+    z-index: 5;
+  }
+  .grass-strip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 0; right: 0;
+    height: 10px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0px, transparent 12px,
+      #4ade80 12px, #4ade80 14px
+    );
+  }
 
-        /* Bones Positioning (Assembling a T-Rex) */
-        .fossil {
-            position: absolute;
-            fill: var(--bone);
-            filter: drop-shadow(2px 4px 2px rgba(0,0,0,0.4));
-            opacity: 0;
-            transform: scale(0.5);
-            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+  /* Dirt layers */
+  .dirt-layer-1 {
+    position: absolute;
+    top: 28px; left: 0; right: 0;
+    height: 35%;
+    background: linear-gradient(180deg, #a16207 0%, #92400e 60%, #78350f 100%);
+  }
+  .dirt-layer-2 {
+    position: absolute;
+    top: calc(28px + 35%); left: 0; right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, #78350f 0%, #451a03 100%);
+  }
 
-        .fossil.revealed {
-            opacity: 1;
-            transform: scale(1);
-        }
+  /* Pebble texture decoration */
+  .pebble {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #d1b285, #9a7c55);
+    opacity: 0.5;
+  }
 
-        #bone-0 { width: 18%; top: 15%; left: 65%; transform-origin: center; } /* Skull */
-        #bone-1 { width: 12%; top: 35%; left: 66%; } /* Jaw */
-        #bone-2 { width: 25%; top: 30%; left: 40%; } /* Spine */
-        #bone-3 { width: 15%; top: 40%; left: 48%; transform: rotate(15deg); } /* Ribs */
-        #bone-4 { width: 20%; top: 25%; left: 22%; transform: rotate(-20deg); } /* Tail 1 */
-        #bone-5 { width: 15%; top: 35%; left: 8%; transform: rotate(-40deg); } /* Tail 2 */
-        #bone-6 { width: 10%; top: 45%; left: 60%; transform: rotate(45deg); } /* Tiny Arm */
-        #bone-7 { width: 18%; top: 55%; left: 45%; transform: rotate(20deg); } /* Leg */
+  /* ============================================================
+     EXCAVATION PIT
+  ============================================================ */
+  #pit {
+    position: absolute;
+    left: 50%;
+    top: 10%;
+    transform: translateX(-50%);
+    width: clamp(260px, 55vw, 600px);
+    height: clamp(200px, 48vh, 420px);
+    background: radial-gradient(ellipse at 50% 30%, #c89030 0%, #8B6914 45%, #6b4f0a 100%);
+    border-radius: 45% 45% 30% 30% / 30% 30% 50% 50%;
+    box-shadow: inset 0 8px 32px rgba(0,0,0,0.35), 0 4px 18px rgba(0,0,0,0.25);
+    z-index: 3;
+    overflow: hidden;
+  }
 
-        /* Animation Layers */
-        .anim-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+  /* Grid lines inside pit for depth */
+  #pit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg,  transparent, transparent 39px, rgba(0,0,0,0.06) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,0,0,0.06) 40px);
+  }
 
-        /* Pickaxe Animation */
-        .pickaxe {
-            font-size: 5rem;
-            position: absolute;
-            opacity: 0;
-            transform-origin: bottom left;
-            z-index: 20;
-        }
+  /* ============================================================
+     FOSSIL SKELETON
+  ============================================================ */
+  #skeleton-container {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+  }
 
-        @keyframes swing {
-            0% { transform: rotate(0deg) translateY(-20px); opacity: 1; }
-            50% { transform: rotate(-45deg) translateY(20px); opacity: 1; }
-            100% { transform: rotate(0deg) translateY(-20px); opacity: 1; }
-        }
+  .fossil-bone {
+    position: absolute;
+    opacity: 0;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    transform: scale(0.6);
+  }
+  .fossil-bone.revealed {
+    opacity: 1;
+    transform: scale(1);
+  }
 
-        /* Rock (Wrong Answer) */
-        .rock {
-            width: 80px;
-            height: 60px;
-            background: var(--rock);
-            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-            position: absolute;
-            box-shadow: inset -5px -5px 10px rgba(0,0,0,0.3);
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.5s ease;
-        }
+  /* T-Rex skeleton SVG pieces laid out inside pit */
+  /* Positions are percentage-based relative to #pit */
 
-        .rock.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
+  /* ============================================================
+     DIG ANIMATIONS
+  ============================================================ */
+  #dig-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    display: none;
+  }
 
-        /* Particles (Dust/Coins) */
-        .particle {
-            position: absolute;
-            border-radius: 50%;
-            pointer-events: none;
-        }
+  .pick-anim {
+    position: absolute;
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    animation: pick-swing 0.5s ease-in-out;
+    transform-origin: bottom right;
+  }
+  @keyframes pick-swing {
+    0%   { transform: rotate(-40deg); }
+    50%  { transform: rotate(20deg); }
+    100% { transform: rotate(-40deg); }
+  }
 
-        @keyframes floatUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
-        }
+  /* Dust cloud */
+  .dust {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(210,180,140,0.85) 0%, transparent 70%);
+    animation: dust-puff 0.8s ease-out forwards;
+  }
+  @keyframes dust-puff {
+    0%   { transform: scale(0.2); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
 
-        @keyframes expandDust {
-            0% { transform: scale(0.5); opacity: 0.8; }
-            100% { transform: scale(3); opacity: 0; }
-        }
+  /* Coin particle */
+  .coin {
+    position: absolute;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fef08a, #eab308);
+    border: 2px solid #d97706;
+    animation: coin-fly 0.9s ease-out forwards;
+  }
+  @keyframes coin-fly {
+    0%   { transform: translate(0,0) scale(0.5) rotate(0deg); opacity:1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(360deg); opacity:0; }
+  }
 
-        /* =========================================
-           MODALS
-           ========================================= */
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            backdrop-filter: blur(3px);
-            opacity: 1;
-            transition: opacity 0.3s;
-        }
+  /* Sparkle */
+  .sparkle {
+    position: absolute;
+    width: 8px; height: 8px;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+    background: #fbbf24;
+    animation: sparkle-anim 0.7s ease-out forwards;
+  }
+  @keyframes sparkle-anim {
+    0%   { transform: translate(0,0) scale(0) rotate(0deg); opacity:1; }
+    60%  { opacity:1; }
+    100% { transform: translate(var(--sdx), var(--sdy)) scale(1.5) rotate(180deg); opacity:0; }
+  }
 
-        .modal-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
+  /* Rock reveal */
+  .rock-reveal {
+    position: absolute;
+    border-radius: 40% 50% 45% 55%;
+    background: radial-gradient(circle at 40% 35%, #d1d5db, #6b7280);
+    animation: rock-drop 0.6s cubic-bezier(.36,.07,.19,.97) forwards;
+  }
+  @keyframes rock-drop {
+    0%   { transform: translateY(-30px) scale(0.5); opacity:0; }
+    60%  { transform: translateY(5px) scale(1.05); opacity:1; }
+    100% { transform: translateY(0) scale(1); opacity:1; }
+  }
 
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            width: 90%;
-            max-width: 500px;
-            text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            border: 4px solid var(--primary);
-            transform: scale(1);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+  /* Wrong flash */
+  #wrong-flash {
+    position: fixed;
+    inset: 0;
+    background: rgba(239,68,68,0.25);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 200;
+  }
+  #wrong-flash.flash {
+    animation: red-flash 0.5s ease-out forwards;
+  }
+  @keyframes red-flash {
+    0%   { opacity:1; }
+    100% { opacity:0; }
+  }
 
-        .modal-overlay.hidden .modal-content {
-            transform: scale(0.8);
-        }
+  /* ============================================================
+     HUD (score / progress)
+  ============================================================ */
+  #hud {
+    position: fixed;
+    top: 12px; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    z-index: 100;
+    pointer-events: none;
+  }
 
-        .question-text {
-            font-size: 1.4rem;
-            margin-bottom: 20px;
-            color: var(--text-main);
-            font-weight: bold;
-        }
+  .hud-pill {
+    background: linear-gradient(135deg, #451a03ee, #78350fee);
+    color: var(--accent-gold);
+    border: 2px solid var(--accent-gold);
+    border-radius: 30px;
+    padding: 6px 18px;
+    font-size: clamp(0.75rem, 2.5vw, 1rem);
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    pointer-events: all;
+  }
 
-        .options-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
+  #restart-btn {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: white;
+    border: 2px solid #4ade80;
+    border-radius: 30px;
+    padding: 6px 18px;
+    font-size: clamp(0.75rem, 2.5vw, 0.95rem);
+    font-weight: bold;
+    cursor: pointer;
+    pointer-events: all;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  #restart-btn:hover { transform: scale(1.06); box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
 
-        .option-btn {
-            background: #E3F2FD;
-            border: 2px solid #2196F3;
-            color: #1565C0;
-            padding: 15px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 4px #2196F3;
-            transition: all 0.1s;
-        }
+  /* Progress bones row */
+  #bones-row {
+    position: fixed;
+    bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 100;
+    background: rgba(69,26,3,0.7);
+    border: 2px solid var(--sand-mid);
+    border-radius: 30px;
+    padding: 6px 14px;
+  }
 
-        .option-btn:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 #2196F3;
-        }
+  .bone-pip {
+    width: clamp(18px, 3.5vw, 26px);
+    height: clamp(18px, 3.5vw, 26px);
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.3);
+    transition: background 0.4s, border-color 0.4s, transform 0.3s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem;
+  }
+  .bone-pip.found {
+    background: radial-gradient(circle, #fef08a, #eab308);
+    border-color: #d97706;
+    transform: scale(1.15);
+  }
 
-        @media (max-width: 500px) {
-            .options-grid { grid-template-columns: 1fr; }
-        }
+  /* ============================================================
+     QUESTION MODAL
+  ============================================================ */
+  #modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 150;
+    backdrop-filter: blur(3px);
+    padding: 16px;
+  }
+  #modal-overlay.hidden { display: none; }
 
-        /* Victory Modal */
-        #victory-modal .modal-content {
-            border-color: var(--secondary);
-            background: #FFFDE7;
-        }
+  #modal-box {
+    background: linear-gradient(160deg, #fef3c7, #fde68a 40%, #fbbf24 100%);
+    border: 4px solid #d97706;
+    border-radius: 24px;
+    padding: clamp(18px, 4vw, 36px);
+    max-width: 560px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.5);
+    animation: modal-pop 0.35s cubic-bezier(.175,.885,.32,1.275) forwards;
+  }
+  @keyframes modal-pop {
+    0%   { transform: scale(0.6) translateY(30px); opacity:0; }
+    100% { transform: scale(1)   translateY(0);    opacity:1; }
+  }
 
-        .victory-title {
-            font-size: 2.5rem;
-            color: #FF9800;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
-        }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .modal-icon { font-size: clamp(1.8rem, 5vw, 2.4rem); }
+  .modal-title {
+    font-size: clamp(0.7rem, 2vw, 0.9rem);
+    color: #92400e;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .q-counter {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: #78350f;
+    font-weight: bold;
+  }
 
-        .victory-score {
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            color: var(--text-main);
-        }
+  #question-text {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+    color: #1c1408;
+    margin-bottom: 20px;
+    line-height: 1.5;
+    font-weight: bold;
+  }
 
-        .btn-play-again {
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 4px var(--primary-dark);
-        }
+  #answers-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
 
-        .btn-play-again:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 var(--primary-dark);
-        }
+  .answer-btn {
+    background: linear-gradient(145deg, #fff8ee, #fef3c7);
+    border: 2.5px solid #d97706;
+    border-radius: 14px;
+    padding: clamp(10px, 2.5vw, 16px) clamp(8px, 2vw, 14px);
+    font-size: clamp(0.85rem, 2.2vw, 1rem);
+    color: #451a03;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    font-weight: bold;
+    transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
+    text-align: center;
+    line-height: 1.35;
+  }
+  .answer-btn:hover {
+    background: linear-gradient(145deg, #fde68a, #fbbf24);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(217,119,6,0.3);
+  }
+  .answer-btn:active { transform: scale(0.97); }
 
-        /* Confetti */
-        .confetti {
-            position: absolute;
-            width: 10px;
-            height: 20px;
-            z-index: 90;
-            animation: fall linear forwards;
-        }
+  /* ============================================================
+     WIN SCREEN
+  ============================================================ */
+  #win-screen {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, #451a03 0%, #1c0a00 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    gap: 20px;
+    padding: 24px;
+  }
+  #win-screen.hidden { display: none; }
 
-        @keyframes fall {
-            to { transform: translateY(100vh) rotate(720deg); }
-        }
-    </style>
+  .win-dino {
+    font-size: clamp(4rem, 12vw, 8rem);
+    animation: dino-dance 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes dino-dance {
+    0%   { transform: rotate(-8deg) scale(1); }
+    100% { transform: rotate(8deg)  scale(1.08); }
+  }
+
+  .win-title {
+    font-size: clamp(1.8rem, 6vw, 3.5rem);
+    color: var(--accent-gold);
+    text-align: center;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    font-weight: bold;
+  }
+  .win-sub {
+    font-size: clamp(1rem, 3vw, 1.4rem);
+    color: #fde68a;
+    text-align: center;
+  }
+  .win-score {
+    font-size: clamp(1.3rem, 4vw, 2rem);
+    color: white;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid var(--accent-gold);
+    border-radius: 20px;
+    padding: 12px 32px;
+    text-align: center;
+  }
+  #play-again-btn {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: white;
+    border: 3px solid #4ade80;
+    border-radius: 40px;
+    padding: 14px 40px;
+    font-size: clamp(1rem, 3vw, 1.3rem);
+    font-weight: bold;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    transition: transform 0.15s, box-shadow 0.15s;
+    margin-top: 8px;
+  }
+  #play-again-btn:hover { transform: scale(1.07); box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+
+  /* ============================================================
+     CONFETTI CANVAS
+  ============================================================ */
+  #confetti-canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 299;
+  }
+
+  /* ============================================================
+     MISC DECORATIONS
+  ============================================================ */
+  .cactus {
+    position: absolute;
+    bottom: 100%;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    z-index: 6;
+    filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.2));
+  }
+  .sign {
+    position: absolute;
+    z-index: 6;
+  }
+
+  /* Shovel tool icon near pit */
+  #shovel-icon {
+    position: absolute;
+    font-size: clamp(1.5rem, 3.5vw, 2.4rem);
+    bottom: calc(62% + 4px);
+    left: calc(50% - clamp(150px, 28.5vw, 310px) - 10px);
+    z-index: 10;
+    filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.25));
+    transform: rotate(-30deg);
+    transition: transform 0.15s;
+  }
+
+  /* Feedback toast */
+  #toast {
+    position: fixed;
+    top: 70px; left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: #1c1408ee;
+    color: var(--accent-gold);
+    border: 2px solid var(--accent-gold);
+    border-radius: 16px;
+    padding: 10px 24px;
+    font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+    font-weight: bold;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    white-space: nowrap;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Responsive: single column answers on tiny screens */
+  @media (max-width: 380px) {
+    #answers-grid { grid-template-columns: 1fr; }
+  }
+</style>
 </head>
 <body>
 
-    <header>
-        <div class="stat-box" id="score-display">Score: 0</div>
-        <button class="btn-restart" onclick="initGame()">Restart Site</button>
-        <div class="stat-box" id="progress-display">Fossils: 0 / 8</div>
-    </header>
+<!-- ============================================================
+     GAME SCENE
+============================================================ -->
+<div id="game-scene">
 
-    <main>
-        <div class="dig-site" id="dig-site">
-            <div class="anim-layer" id="anim-layer">
-                <div class="pickaxe" id="pickaxe">⛏️</div>
-                <div class="rock" id="rock"></div>
-            </div>
-        </div>
-    </main>
+  <!-- SKY -->
+  <div id="sky">
+    <div id="sun"></div>
+    <div class="cloud" id="cloud1"></div>
+    <div class="cloud" id="cloud2"></div>
+  </div>
 
-    <div class="modal-overlay" id="quiz-modal">
-        <div class="modal-content">
-            <h2 class="question-text" id="question-text">Question goes here?</h2>
-            <div class="options-grid" id="options-grid">
-                </div>
-        </div>
+  <!-- GROUND -->
+  <div id="ground-surface">
+    <div class="grass-strip"></div>
+    <div class="dirt-layer-1"></div>
+    <div class="dirt-layer-2"></div>
+
+    <!-- Pebbles (decorative) -->
+    <div class="pebble" style="width:12px;height:9px;left:15%;top:12%"></div>
+    <div class="pebble" style="width:8px;height:6px;left:22%;top:22%"></div>
+    <div class="pebble" style="width:10px;height:7px;right:18%;top:15%"></div>
+    <div class="pebble" style="width:14px;height:10px;right:10%;top:35%"></div>
+
+    <!-- Cactus decorations -->
+    <span class="cactus" style="left:4%;bottom:0">🌵</span>
+    <span class="cactus" style="right:5%;bottom:0;font-size:clamp(1.2rem,2.5vw,2rem)">🌵</span>
+
+    <!-- Excavation Pit -->
+    <div id="pit">
+      <div id="skeleton-container">
+        <!-- Bones injected by JS as SVG elements -->
+      </div>
     </div>
 
-    <div class="modal-overlay hidden" id="victory-modal">
-        <div class="modal-content">
-            <h1 class="victory-title">Dinosaur Completed!</h1>
-            <p class="victory-score" id="final-score">Final Score: 800</p>
-            <button class="btn-play-again" onclick="initGame()">Excavate Another!</button>
-        </div>
+    <!-- Rock that appears on wrong answer (hidden initially) -->
+    <div id="wrong-rock" style="display:none"></div>
+  </div>
+
+  <!-- Shovel decoration -->
+  <div id="shovel-icon">⛏️</div>
+
+</div><!-- end game-scene -->
+
+<!-- ============================================================
+     HUD
+============================================================ -->
+<div id="hud">
+  <div class="hud-pill">⭐ Score: <span id="score-val">0</span></div>
+  <button id="restart-btn" onclick="restartGame()">🔄 Restart</button>
+</div>
+
+<!-- Progress pips -->
+<div id="bones-row" id="bones-row">
+  <!-- Filled by JS -->
+</div>
+
+<!-- Feedback toast -->
+<div id="toast"></div>
+
+<!-- Red flash overlay -->
+<div id="wrong-flash"></div>
+
+<!-- Dig animation overlay -->
+<div id="dig-overlay"></div>
+
+<!-- ============================================================
+     QUESTION MODAL
+============================================================ -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div class="modal-header">
+      <span class="modal-icon">🦕</span>
+      <div>
+        <div class="modal-title">Excavation Challenge</div>
+      </div>
+      <div class="q-counter" id="q-counter"></div>
     </div>
+    <div id="question-text">Loading question...</div>
+    <div id="answers-grid">
+      <!-- Buttons injected by JS -->
+    </div>
+  </div>
+</div>
 
-    <script>
-        /* =========================================
-           GAME DATA & CONFIGURATION
-           ========================================= */
-        const TOTAL_FOSSILS = 8;
-        const SCORE_PER_BONE = 100;
+<!-- ============================================================
+     WIN SCREEN
+============================================================ -->
+<div id="win-screen" class="hidden">
+  <canvas id="confetti-canvas"></canvas>
+  <div class="win-dino">🦖</div>
+  <div class="win-title">🎉 Dinosaur Completed! 🎉</div>
+  <div class="win-sub">You uncovered the full fossil skeleton!</div>
+  <div class="win-score">Final Score: <strong><span id="final-score">0</span></strong> pts</div>
+  <button id="play-again-btn" onclick="restartGame()">🦴 Dig Again!</button>
+</div>
 
-        // Sample Questions Array (Easily customizable)
-        const allQuestions = [
-            { q: "What does the word 'Dinosaur' mean?", options: ["Terrible Lizard", "Giant Bird", "Ancient Bone", "Earth King"], answer: 0 },
-            { q: "Which dinosaur had three horns?", options: ["T-Rex", "Triceratops", "Stegosaurus", "Velociraptor"], answer: 1 },
-            { q: "What do we call scientists who study fossils?", options: ["Geologists", "Biologists", "Paleontologists", "Archaeologists"], answer: 2 },
-            { q: "During which era did dinosaurs live?", options: ["Paleozoic", "Mesozoic", "Cenozoic", "Precambrian"], answer: 1 },
-            { q: "Which of these is known as the 'King' of dinosaurs?", options: ["Spinosaurus", "Brachiosaurus", "Tyrannosaurus Rex", "Allosaurus"], answer: 2 },
-            { q: "What did a Stegosaurus have on its back?", options: ["Spikes", "Feathers", "Plates", "Fur"], answer: 2 },
-            { q: "Which dinosaur is famous for a large club on its tail?", options: ["Ankylosaurus", "Iguanodon", "Pteranodon", "Diplodocus"], answer: 0 },
-            { q: "Are birds considered modern-day descendants of dinosaurs?", options: ["Yes", "No", "Only penguins", "Only ostriches"], answer: 0 },
-            { q: "What is fossilized tree resin called?", options: ["Sap", "Amber", "Crystal", "Quartz"], answer: 1 },
-            { q: "Which of these was a flying reptile, NOT a true dinosaur?", options: ["Velociraptor", "Gallimimus", "Pterodactyl", "Oviraptor"], answer: 2 }
-        ];
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+<script>
+/* ============================================================
+   QUESTION BANK
+   Add more questions here — each needs: question, answers[4], correct (0-3 index)
+============================================================ */
+const QUESTIONS = [
+  {
+    question: "Apa warna langit pada siang hari?",
+    answers: ["Merah", "Biru", "Hijau", "Hitam"],
+    correct: 1,
+  },
+  {
+    question: "Berapa hasil dari 2 + 3?",
+    answers: ["4", "6", "5", "7"],
+    correct: 2,
+  },
+  {
+    question: "Hewan apa yang bisa terbang dan bertelur?",
+    answers: ["Kucing", "Ikan", "Burung", "Kelinci"],
+    correct: 2,
+  },
+  {
+    question: "Buah apa yang berwarna kuning dan rasanya manis?",
+    answers: ["Apel", "Pisang", "Semangka", "Anggur"],
+    correct: 1,
+  },
+  {
+    question: "Ada berapa hari dalam seminggu?",
+    answers: ["5 hari", "6 hari", "8 hari", "7 hari"],
+    correct: 3,
+  },
+  {
+    question: "Hewan apa yang suka makan wortel dan telinganya panjang?",
+    answers: ["Anjing", "Kelinci", "Kuda", "Sapi"],
+    correct: 1,
+  },
+  {
+    question: "Apa yang kita pakai untuk menulis di buku?",
+    answers: ["Penggaris", "Pensil", "Gunting", "Lem"],
+    correct: 1,
+  },
+  {
+    question: "Dinosaurus T-Rex adalah hewan pemakan apa?",
+    answers: ["Pemakan rumput", "Pemakan buah", "Pemakan daging", "Pemakan biji-bijian"],
+    correct: 2,
+  },
+];
 
-        // SVGs for the 8 fossil pieces (Stylized Cartoon Bones)
-        const fossilSVGs = [
-            // 0: Skull
-            `<svg viewBox="0 0 100 100"><path d="M80,20 C90,20 95,30 95,45 C95,65 85,85 65,85 C55,85 45,75 35,75 C25,75 10,70 10,50 C10,30 30,20 50,20 Z" /><circle cx="65" cy="45" r="8" fill="#5D4037"/></svg>`,
-            // 1: Jaw
-            `<svg viewBox="0 0 100 40"><path d="M10,20 C30,40 70,40 90,20 L80,10 C60,25 40,25 20,10 Z" /><path d="M20,10 L25,5 M40,15 L45,5 M60,15 L65,5 M80,10 L85,5" stroke="#F5F5DC" stroke-width="3"/></svg>`,
-            // 2: Spine (Line of dots/bones)
-            `<svg viewBox="0 0 100 30"><rect x="5" y="10" width="90" height="10" rx="5"/><circle cx="20" cy="15" r="12"/><circle cx="50" cy="15" r="12"/><circle cx="80" cy="15" r="12"/></svg>`,
-            // 3: Ribs
-            `<svg viewBox="0 0 100 100"><path d="M50,10 L50,90" stroke="var(--bone)" stroke-width="8" stroke-linecap="round"/><path d="M30,30 Q50,20 70,30 M20,50 Q50,40 80,50 M30,70 Q50,60 70,70" stroke="var(--bone)" stroke-width="8" stroke-linecap="round" fill="none"/></svg>`,
-            // 4: Tail 1 (Thick Bone)
-            `<svg viewBox="0 0 100 30"><rect x="15" y="5" width="70" height="20" rx="10"/><circle cx="15" cy="10" r="10"/><circle cx="15" cy="20" r="10"/><circle cx="85" cy="10" r="10"/><circle cx="85" cy="20" r="10"/></svg>`,
-            // 5: Tail 2 (Thinner Bone)
-            `<svg viewBox="0 0 100 24"><rect x="15" y="4" width="70" height="16" rx="8"/><circle cx="15" cy="8" r="8"/><circle cx="15" cy="16" r="8"/><circle cx="85" cy="8" r="8"/><circle cx="85" cy="16" r="8"/></svg>`,
-            // 6: Arm
-            `<svg viewBox="0 0 80 20"><rect x="10" y="5" width="60" height="10" rx="5"/><circle cx="10" cy="10" r="6"/><circle cx="70" cy="10" r="6"/></svg>`,
-            // 7: Leg
-            `<svg viewBox="0 0 100 40"><rect x="20" y="5" width="60" height="30" rx="15"/><circle cx="20" cy="12" r="15"/><circle cx="20" cy="28" r="15"/><circle cx="80" cy="12" r="15"/><circle cx="80" cy="28" r="15"/></svg>`
-        ];
+/* ============================================================
+   FOSSIL BONE DEFINITIONS
+   8 SVG bones laid out to form a T-Rex skeleton inside the pit
+============================================================ */
+const BONE_DEFS = [
+  // [id, label, SVG path data, x%, y%, width, height, transform]
+  { id: 'skull',     label: '💀 Skull',
+    svg: `<ellipse cx="50" cy="38" rx="42" ry="32" fill="#f5f0e8" stroke="#c8b99a" stroke-width="3"/>
+          <ellipse cx="50" cy="58" rx="18" ry="12" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <circle cx="32" cy="32" r="8" fill="white" stroke="#c8b99a" stroke-width="2"/>
+          <circle cx="32" cy="32" r="4" fill="#2d1b00" opacity="0.7"/>
+          <path d="M40 62 L36 78 M52 62 L50 78 M60 60 L62 74" stroke="#c8b99a" stroke-width="2.5" stroke-linecap="round"/>`,
+    w:100, h:90, x:'64%', y:'12%' },
 
-        /* =========================================
-           STATE MANAGEMENT
-           ========================================= */
-        let currentQuestions = [];
-        let score = 0;
-        let fossilsFound = 0;
-        let isAnimating = false;
+  { id: 'spine',     label: '🔗 Spine',
+    svg: `<rect x="8" y="0" width="14" height="120" rx="7" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <rect x="0"  y="10" width="30" height="8"  rx="4" fill="#e8dcc8" stroke="#c8b99a" stroke-width="1.5"/>
+          <rect x="0"  y="28" width="30" height="8"  rx="4" fill="#e8dcc8" stroke="#c8b99a" stroke-width="1.5"/>
+          <rect x="0"  y="46" width="30" height="8"  rx="4" fill="#e8dcc8" stroke="#c8b99a" stroke-width="1.5"/>
+          <rect x="0"  y="64" width="30" height="8"  rx="4" fill="#e8dcc8" stroke="#c8b99a" stroke-width="1.5"/>
+          <rect x="0"  y="82" width="30" height="8"  rx="4" fill="#e8dcc8" stroke="#c8b99a" stroke-width="1.5"/>
+          <rect x="0"  y="100" width="30" height="8" rx="4" fill="#e8dcc8" stroke="#c8b99a" stroke-width="1.5"/>`,
+    w:30, h:120, x:'44%', y:'18%' },
 
-        // DOM Elements
-        const elScore = document.getElementById('score-display');
-        const elProgress = document.getElementById('progress-display');
-        const elDigSite = document.getElementById('dig-site');
-        const elQuizModal = document.getElementById('quiz-modal');
-        const elQuestionText = document.getElementById('question-text');
-        const elOptionsGrid = document.getElementById('options-grid');
-        const elVictoryModal = document.getElementById('victory-modal');
-        const elFinalScore = document.getElementById('final-score');
-        const elPickaxe = document.getElementById('pickaxe');
-        const elRock = document.getElementById('rock');
-        const elAnimLayer = document.getElementById('anim-layer');
+  { id: 'ribs',      label: '🦴 Ribs',
+    svg: `<path d="M15,8 Q-10,30 -5,55 Q15,60 15,55" fill="none" stroke="#f0e8d8" stroke-width="6" stroke-linecap="round"/>
+          <path d="M15,22 Q-15,42 -8,65 Q15,68 15,62" fill="none" stroke="#f0e8d8" stroke-width="5" stroke-linecap="round"/>
+          <path d="M15,36 Q-12,54 -4,74 Q15,76 15,70" fill="none" stroke="#f0e8d8" stroke-width="5" stroke-linecap="round"/>
+          <path d="M15,8 Q40,30 35,55 Q15,60 15,55" fill="none" stroke="#f0e8d8" stroke-width="6" stroke-linecap="round"/>
+          <path d="M15,22 Q45,42 38,65 Q15,68 15,62" fill="none" stroke="#f0e8d8" stroke-width="5" stroke-linecap="round"/>
+          <path d="M15,36 Q42,54 34,74 Q15,76 15,70" fill="none" stroke="#f0e8d8" stroke-width="5" stroke-linecap="round"/>
+          <rect x="8" y="0" width="14" height="82" rx="7" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>`,
+    w:60, h:85, x:'38%', y:'20%' },
 
-        /* =========================================
-           CORE LOGIC
-           ========================================= */
-        
-        function initGame() {
-            // Reset State
-            score = 0;
-            fossilsFound = 0;
-            isAnimating = false;
-            updateUI();
+  { id: 'tail',      label: '🦎 Tail',
+    svg: `<path d="M0,12 Q30,8 60,14 Q90,20 115,10 Q130,5 140,12" fill="none" stroke="#f5f0e8" stroke-width="16" stroke-linecap="round"/>
+          <path d="M0,12 Q30,8 60,14 Q90,20 115,10 Q130,5 140,12" fill="none" stroke="#c8b99a" stroke-width="2" stroke-linecap="round"/>`,
+    w:140, h:28, x:'5%', y:'26%' },
 
-            // Shuffle questions and select the ones we need
-            currentQuestions = [...allQuestions].sort(() => Math.random() - 0.5);
+  { id: 'front-leg-l', label: '🦵 Front Leg',
+    svg: `<rect x="5" y="0" width="16" height="65" rx="8" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <ellipse cx="13" cy="72" rx="16" ry="10" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <path d="M5,72 L0,84 M13,78 L11,90 M21,72 L26,84" stroke="#c8b99a" stroke-width="2.5" stroke-linecap="round"/>`,
+    w:30, h:92, x:'54%', y:'42%' },
 
-            // Clean up DOM
-            elVictoryModal.classList.add('hidden');
-            elQuizModal.classList.remove('hidden');
-            elRock.classList.remove('show');
-            document.querySelectorAll('.confetti').forEach(e => e.remove());
+  { id: 'front-leg-r', label: '🦵 Front Leg R',
+    svg: `<rect x="5" y="0" width="16" height="55" rx="8" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <ellipse cx="13" cy="62" rx="16" ry="10" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <path d="M5,62 L0,74 M13,68 L11,80 M21,62 L26,74" stroke="#c8b99a" stroke-width="2.5" stroke-linecap="round"/>`,
+    w:30, h:82, x:'60%', y:'46%' },
 
-            // Inject Fossil SVGs into the dirt
-            elDigSite.innerHTML = '';
-            elDigSite.appendChild(elAnimLayer); // Keep animation layer
-            
-            for (let i = 0; i < TOTAL_FOSSILS; i++) {
-                const boneDiv = document.createElement('div');
-                boneDiv.className = 'fossil';
-                boneDiv.id = `bone-${i}`;
-                boneDiv.innerHTML = fossilSVGs[i];
-                elDigSite.appendChild(boneDiv);
-            }
+  { id: 'back-leg-l', label: '🦶 Back Leg',
+    svg: `<rect x="5" y="0" width="20" height="80" rx="10" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <rect x="0" y="78" width="18" height="24" rx="6" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <path d="M2,100 L-4,110 M10,102 L8,114 M18,100 L22,110" stroke="#c8b99a" stroke-width="2.5" stroke-linecap="round"/>`,
+    w:32, h:115, x:'22%', y:'38%' },
 
-            // // playSound('start.mp3'); // Placeholder for sound
-            showNextQuestion();
-        }
+  { id: 'back-leg-r', label: '🦶 Back Leg R',
+    svg: `<rect x="5" y="0" width="20" height="70" rx="10" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <rect x="0" y="68" width="18" height="22" rx="6" fill="#f5f0e8" stroke="#c8b99a" stroke-width="2"/>
+          <path d="M2,88 L-4,98 M10,90 L8,102 M18,88 L22,98" stroke="#c8b99a" stroke-width="2.5" stroke-linecap="round"/>`,
+    w:32, h:105, x:'32%', y:'40%' },
+];
 
-        function updateUI() {
-            elScore.innerText = `Score: ${score}`;
-            elProgress.innerText = `Fossils: ${fossilsFound} / ${TOTAL_FOSSILS}`;
-        }
+/* ============================================================
+   GAME STATE
+============================================================ */
+let state = {
+  score: 0,
+  bonesFound: 0,
+  totalBones: BONE_DEFS.length,      // 8
+  questionIndex: 0,
+  questions: [],                      // shuffled subset
+  animating: false,
+  gameOver: false,
+};
 
-        function showNextQuestion() {
-            if (fossilsFound >= TOTAL_FOSSILS) {
-                triggerVictory();
-                return;
-            }
+/* ============================================================
+   INIT
+============================================================ */
+function initGame() {
+  state.score = 0;
+  state.bonesFound = 0;
+  state.questionIndex = 0;
+  state.animating = false;
+  state.gameOver = false;
 
-            // Ensure we have questions (loop if necessary, though array size > total fossils)
-            const qData = currentQuestions[fossilsFound % currentQuestions.length];
-            
-            elQuestionText.innerText = qData.q;
-            elOptionsGrid.innerHTML = '';
+  // Shuffle questions
+  state.questions = shuffle([...QUESTIONS]);
 
-            qData.options.forEach((opt, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'option-btn';
-                btn.innerText = opt;
-                btn.onclick = () => handleAnswer(index, qData.answer);
-                elOptionsGrid.appendChild(btn);
-            });
+  // Build bones in pit
+  buildSkeleton();
 
-            elQuizModal.classList.remove('hidden');
-        }
+  // Build progress pips
+  buildPips();
 
-        function handleAnswer(selectedIndex, correctIndex) {
-            if (isAnimating) return;
-            isAnimating = true;
-            
-            elQuizModal.classList.add('hidden');
+  // Update HUD
+  updateHUD();
 
-            const isCorrect = (selectedIndex === correctIndex);
+  // Hide win screen
+  document.getElementById('win-screen').classList.add('hidden');
 
-            // Digging Animation Sequence
-            elPickaxe.style.animation = 'swing 0.5s ease-in-out 2';
-            // // playSound('dig.mp3'); // Placeholder
+  // Show first question
+  showQuestion();
+}
 
-            setTimeout(() => {
-                elPickaxe.style.animation = ''; // Reset pickaxe
-                
-                if (isCorrect) {
-                    processCorrectAnswer();
-                } else {
-                    processWrongAnswer();
-                }
-            }, 1000); // Wait for pickaxe animation to finish
-        }
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
-        function processCorrectAnswer() {
-            // // playSound('success.mp3'); // Placeholder
-            score += SCORE_PER_BONE;
-            
-            // Reveal Bone
-            const boneEl = document.getElementById(`bone-${fossilsFound}`);
-            if (boneEl) boneEl.classList.add('revealed');
-            
-            fossilsFound++;
-            updateUI();
-            
-            spawnParticles('coin', '#FFC107', 10);
-            spawnParticles('sparkle', '#FFF', 5);
+/* ============================================================
+   BUILD SKELETON (places all 8 bone pieces, hidden)
+============================================================ */
+function buildSkeleton() {
+  const container = document.getElementById('skeleton-container');
+  container.innerHTML = '';
+  BONE_DEFS.forEach((bone, i) => {
+    const el = document.createElement('div');
+    el.className = 'fossil-bone';
+    el.id = 'bone-' + bone.id;
+    el.style.cssText = `left:${bone.x}; top:${bone.y}; width:${bone.w}px; height:${bone.h}px; position:absolute;`;
+    el.innerHTML = `<svg width="${bone.w}" height="${bone.h}" viewBox="0 0 ${bone.w} ${bone.h}" xmlns="http://www.w3.org/2000/svg">${bone.svg}</svg>`;
+    container.appendChild(el);
+  });
+}
 
-            setTimeout(() => {
-                isAnimating = false;
-                showNextQuestion();
-            }, 1500);
-        }
+/* ============================================================
+   BUILD PROGRESS PIPS
+============================================================ */
+function buildPips() {
+  const row = document.getElementById('bones-row');
+  row.innerHTML = '';
+  for (let i = 0; i < BONE_DEFS.length; i++) {
+    const pip = document.createElement('div');
+    pip.className = 'bone-pip';
+    pip.id = 'pip-' + i;
+    pip.title = BONE_DEFS[i].label;
+    pip.innerHTML = '🦴';
+    pip.style.fontSize = '0';
+    row.appendChild(pip);
+  }
+}
 
-        function processWrongAnswer() {
-            // // playSound('fail.mp3'); // Placeholder
-            
-            elRock.classList.add('show');
-            spawnParticles('dust', '#795548', 15);
+/* ============================================================
+   QUESTION MODAL
+============================================================ */
+function showQuestion() {
+  if (state.gameOver) return;
 
-            setTimeout(() => {
-                elRock.classList.remove('show');
-                isAnimating = false;
-                showNextQuestion();
-            }, 2000);
-        }
+  // Cycle questions if we run out
+  const q = state.questions[state.questionIndex % state.questions.length];
+  const total = BONE_DEFS.length;
+  const remaining = total - state.bonesFound;
 
-        /* =========================================
-           PARTICLES & EFFECTS
-           ========================================= */
-        function spawnParticles(type, color, count) {
-            const rect = elAnimLayer.getBoundingClientRect();
-            
-            for (let i = 0; i < count; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.backgroundColor = color;
-                
-                // Random position near center
-                const x = 50 + (Math.random() * 20 - 10);
-                const y = 50 + (Math.random() * 20 - 10);
-                particle.style.left = `${x}%`;
-                particle.style.top = `${y}%`;
+  document.getElementById('question-text').textContent = q.question;
+  document.getElementById('q-counter').textContent =
+    `🦴 ${state.bonesFound}/${total}`;
 
-                if (type === 'coin' || type === 'sparkle') {
-                    particle.style.width = type === 'coin' ? '20px' : '10px';
-                    particle.style.height = type === 'coin' ? '20px' : '10px';
-                    particle.style.animation = `floatUp ${1 + Math.random()}s ease-out forwards`;
-                } else if (type === 'dust') {
-                    particle.style.width = '40px';
-                    particle.style.height = '40px';
-                    particle.style.opacity = '0.8';
-                    particle.style.animation = `expandDust ${0.5 + Math.random() * 0.5}s ease-out forwards`;
-                }
+  const grid = document.getElementById('answers-grid');
+  grid.innerHTML = '';
 
-                elAnimLayer.appendChild(particle);
+  q.answers.forEach((ans, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.textContent = ans;
+    btn.onclick = () => handleAnswer(i === q.correct, btn);
+    grid.appendChild(btn);
+  });
 
-                // Cleanup
-                setTimeout(() => {
-                    if(particle.parentNode) particle.remove();
-                }, 2000);
-            }
-        }
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
 
-        function triggerVictory() {
-            // // playSound('victory.mp3'); // Placeholder
-            elFinalScore.innerText = `Final Score: ${score}`;
-            elVictoryModal.classList.remove('hidden');
-            
-            // Confetti loop
-            for (let i = 0; i < 100; i++) {
-                createConfetti();
-            }
-        }
+function hideModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+}
 
-        function createConfetti() {
-            const confetti = document.createElement('div');
-            confetti.className = 'confetti';
-            
-            // Random properties
-            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'];
-            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            confetti.style.left = Math.random() * 100 + 'vw';
-            confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
-            confetti.style.animationDelay = Math.random() * 2 + 's';
+/* ============================================================
+   ANSWER HANDLER
+============================================================ */
+function handleAnswer(correct, btn) {
+  if (state.animating) return;
+  state.animating = true;
 
-            document.body.appendChild(confetti);
-        }
+  // Disable all buttons
+  document.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
 
-        // Initialize game on load
-        window.onload = initGame;
+  hideModal();
 
-    </script>
+  if (correct) {
+    // SOUND_PLACEHOLDER: playSound('correct');
+    handleCorrect();
+  } else {
+    // SOUND_PLACEHOLDER: playSound('wrong');
+    handleWrong();
+  }
+}
+
+/* ============================================================
+   CORRECT ANSWER FLOW
+============================================================ */
+function handleCorrect() {
+  state.score += 10;
+  updateHUD();
+  showToast('✅ Correct! Keep digging!', '#22c55e');
+
+  // Play dig animation then reveal bone
+  playDigAnimation(true, () => {
+    revealBone(state.bonesFound);
+    state.bonesFound++;
+    updateHUD();
+    updatePips();
+
+    state.questionIndex++;
+
+    setTimeout(() => {
+      state.animating = false;
+      if (state.bonesFound >= state.totalBones) {
+        triggerWin();
+      } else {
+        showQuestion();
+      }
+    }, 900);
+  });
+}
+
+/* ============================================================
+   WRONG ANSWER FLOW
+============================================================ */
+function handleWrong() {
+  showToast('❌ Wrong! Just a rock...', '#ef4444');
+
+  // Flash red
+  const flash = document.getElementById('wrong-flash');
+  flash.classList.remove('flash');
+  void flash.offsetWidth; // reflow
+  flash.classList.add('flash');
+
+  // SOUND_PLACEHOLDER: playSound('wrong');
+
+  playDigAnimation(false, () => {
+    spawnRock();
+    state.questionIndex++;
+
+    setTimeout(() => {
+      state.animating = false;
+      showQuestion();
+    }, 900);
+  });
+}
+
+/* ============================================================
+   DIG ANIMATION
+============================================================ */
+function playDigAnimation(success, callback) {
+  const overlay = document.getElementById('dig-overlay');
+  overlay.style.display = 'block';
+  overlay.innerHTML = '';
+
+  // Pickaxe icon swinging
+  const pick = document.createElement('div');
+  pick.className = 'pick-anim';
+  pick.textContent = '⛏️';
+  pick.style.cssText = 'left:48%;top:35%;';
+  overlay.appendChild(pick);
+
+  // Dust cloud
+  setTimeout(() => {
+    for (let i = 0; i < 4; i++) {
+      const dust = document.createElement('div');
+      dust.className = 'dust';
+      const size = 60 + Math.random() * 60;
+      dust.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${40 + Math.random()*18}%;
+        top:${38 + Math.random()*12}%;
+        animation-delay:${i*0.08}s;
+      `;
+      overlay.appendChild(dust);
+    }
+  }, 250);
+
+  if (success) {
+    // Coins
+    setTimeout(() => {
+      for (let i = 0; i < 6; i++) {
+        const coin = document.createElement('div');
+        coin.className = 'coin';
+        const angle = (Math.PI * 2 / 6) * i;
+        const dist = 60 + Math.random() * 40;
+        coin.style.cssText = `
+          left:calc(50% - 10px);
+          top:calc(42% - 10px);
+          --dx:${Math.cos(angle)*dist}px;
+          --dy:${Math.sin(angle)*dist - 20}px;
+          animation-delay:${i*0.05}s;
+        `;
+        overlay.appendChild(coin);
+      }
+      // Sparkles
+      for (let i = 0; i < 8; i++) {
+        const sp = document.createElement('div');
+        sp.className = 'sparkle';
+        const angle = (Math.PI * 2 / 8) * i + 0.2;
+        const dist = 50 + Math.random() * 60;
+        sp.style.cssText = `
+          left:calc(${38+Math.random()*24}%);
+          top:calc(${35+Math.random()*18}%);
+          --sdx:${Math.cos(angle)*dist}px;
+          --sdy:${Math.sin(angle)*dist}px;
+          animation-delay:${Math.random()*0.2}s;
+          width:${6+Math.random()*8}px;
+          height:${6+Math.random()*8}px;
+        `;
+        overlay.appendChild(sp);
+      }
+    }, 300);
+  }
+
+  // Clean up and callback
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    overlay.innerHTML = '';
+    callback();
+  }, 900);
+}
+
+/* ============================================================
+   REVEAL BONE
+============================================================ */
+function revealBone(index) {
+  if (index >= BONE_DEFS.length) return;
+  const bone = BONE_DEFS[index];
+  const el = document.getElementById('bone-' + bone.id);
+  if (el) {
+    el.classList.add('revealed');
+    // SOUND_PLACEHOLDER: playSound('bone_reveal');
+  }
+}
+
+/* ============================================================
+   SPAWN ROCK (wrong answer)
+============================================================ */
+function spawnRock() {
+  const pit = document.getElementById('pit');
+  const rock = document.createElement('div');
+  rock.className = 'rock-reveal';
+  const size = 20 + Math.random() * 20;
+  rock.style.cssText = `
+    width:${size}px; height:${size * 0.75}px;
+    left:${30 + Math.random() * 40}%;
+    top:${30 + Math.random() * 35}%;
+    position:absolute; z-index:10;
+  `;
+  pit.appendChild(rock);
+  // Remove after 2s
+  setTimeout(() => rock.remove(), 2000);
+}
+
+/* ============================================================
+   PROGRESS PIPS & HUD
+============================================================ */
+function updatePips() {
+  for (let i = 0; i < BONE_DEFS.length; i++) {
+    const pip = document.getElementById('pip-' + i);
+    if (!pip) continue;
+    if (i < state.bonesFound) {
+      pip.classList.add('found');
+      pip.style.fontSize = '0.65rem';
+    } else {
+      pip.classList.remove('found');
+      pip.style.fontSize = '0';
+    }
+  }
+}
+
+function updateHUD() {
+  document.getElementById('score-val').textContent = state.score;
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+let toastTimer;
+function showToast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.color = color || 'var(--accent-gold)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+/* ============================================================
+   WIN / CELEBRATION
+============================================================ */
+function triggerWin() {
+  state.gameOver = true;
+  // SOUND_PLACEHOLDER: playSound('win');
+
+  document.getElementById('final-score').textContent = state.score;
+  document.getElementById('win-screen').classList.remove('hidden');
+
+  startConfetti();
+}
+
+/* ============================================================
+   CONFETTI ENGINE (pure canvas, no libs)
+============================================================ */
+let confettiAnimId;
+function startConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+
+  const colors = ['#fbbf24','#f59e0b','#22c55e','#16a34a','#ef4444','#ec4899','#818cf8','#fff','#fb923c'];
+  const pieces = Array.from({length: 120}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -canvas.height,
+    r: 5 + Math.random() * 9,
+    d: 2 + Math.random() * 3,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    tilt: Math.random() * 10 - 5,
+    tiltAngle: 0,
+    tiltAngleInc: Math.random() * 0.07 + 0.02,
+    shape: Math.random() > 0.5 ? 'rect' : 'circle',
+  }));
+
+  let tick = 0;
+  function drawConfetti() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    tick++;
+    pieces.forEach(p => {
+      p.tiltAngle += p.tiltAngleInc;
+      p.y += p.d;
+      p.tilt = Math.sin(p.tiltAngle) * 13;
+      p.x += Math.sin(tick / 60) * 0.5;
+
+      ctx.beginPath();
+      ctx.fillStyle = p.color;
+      if (p.shape === 'circle') {
+        ctx.arc(p.x, p.y, p.r, 0, 2*Math.PI);
+      } else {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.tilt * 0.05);
+        ctx.fillRect(-p.r, -p.r/2, p.r*2, p.r);
+        ctx.restore();
+        return;
+      }
+      ctx.fill();
+
+      // Reset fallen pieces
+      if (p.y > canvas.height) {
+        p.y = -10;
+        p.x = Math.random() * canvas.width;
+      }
+    });
+    confettiAnimId = requestAnimationFrame(drawConfetti);
+  }
+  drawConfetti();
+}
+
+function stopConfetti() {
+  cancelAnimationFrame(confettiAnimId);
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+/* ============================================================
+   RESTART
+============================================================ */
+function restartGame() {
+  stopConfetti();
+  initGame();
+}
+
+/* ============================================================
+   SOUND PLACEHOLDERS (commented out, add your own audio)
+============================================================
+function playSound(name) {
+  const sounds = {
+    correct: new Audio('sounds/correct.mp3'),
+    wrong:   new Audio('sounds/wrong.mp3'),
+    bone_reveal: new Audio('sounds/reveal.mp3'),
+    win:     new Audio('sounds/win.mp3'),
+  };
+  if (sounds[name]) sounds[name].play();
+}
+============================================================ */
+
+/* ============================================================
+   KICK OFF
+============================================================ */
+window.addEventListener('load', initGame);
+window.addEventListener('resize', () => {
+  const canvas = document.getElementById('confetti-canvas');
+  if (canvas && !document.getElementById('win-screen').classList.contains('hidden')) {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+});
+</script>
 </body>
 </html>
