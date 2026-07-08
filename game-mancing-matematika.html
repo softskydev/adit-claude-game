@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mancing Mania Matematika 🎣</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky1:#8ED6F5; --sky2:#C9EDFB;
+    --sea1:#1B7FB4; --sea2:#0C5A88;
+    --sand:#FBE7A1;
+    --coral:#FF7A59;
+    --leaf:#4CC17E;
+    --ink:#1E3A4C;
+    --card:#FFFFFF;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    font-family:'Fredoka',sans-serif;
+    background:linear-gradient(var(--sky2),var(--sky1));
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    padding:12px;
+  }
+  .game{
+    width:100%;max-width:480px;
+    background:#fff;
+    border-radius:24px;
+    overflow:hidden;
+    box-shadow:0 16px 40px rgba(12,90,136,.28);
+  }
+
+  /* ===== SCENE ===== */
+  .scene{
+    position:relative;
+    height:300px;
+    background:linear-gradient(var(--sky2) 0%, var(--sky1) 55%, var(--sea1) 55%, var(--sea2) 100%);
+    overflow:hidden;
+  }
+  .sun{position:absolute;top:18px;left:22px;width:52px;height:52px;border-radius:50%;
+    background:#FFD84D;box-shadow:0 0 0 10px rgba(255,216,77,.3);}
+  .cloud{position:absolute;background:#fff;border-radius:40px;opacity:.9;animation:drift 22s linear infinite;}
+  .cloud::before,.cloud::after{content:"";position:absolute;background:#fff;border-radius:50%;}
+  .c1{top:28px;left:60%;width:64px;height:20px;}
+  .c1::before{width:26px;height:26px;top:-13px;left:10px;}
+  .c1::after{width:20px;height:20px;top:-9px;left:32px;}
+  .c2{top:70px;left:20%;width:50px;height:16px;animation-duration:30s;}
+  .c2::before{width:20px;height:20px;top:-10px;left:8px;}
+  .c2::after{width:16px;height:16px;top:-7px;left:26px;}
+  @keyframes drift{from{transform:translateX(0)}50%{transform:translateX(40px)}to{transform:translateX(0)}}
+
+  .waves{position:absolute;left:0;right:0;top:calc(55% - 10px);height:20px;}
+  .waves svg{width:200%;height:100%;animation:wave 6s linear infinite;}
+  @keyframes wave{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+  /* boat + fisherman */
+  .boat{position:absolute;top:26%;right:14px;width:150px;animation:bob 3.4s ease-in-out infinite;transform-origin:center;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(6px) rotate(1.5deg)}}
+
+  /* fishing line + catch */
+  .line-wrap{position:absolute;top:37%;right:118px;width:2px;display:flex;flex-direction:column;align-items:center;}
+  .line{width:2px;background:#284b5e;height:0;transition:height .9s ease-in-out;}
+  .hook-item{
+    font-size:44px;line-height:1;
+    transform:scale(0);transition:transform .3s;
+    filter:drop-shadow(0 3px 3px rgba(0,0,0,.25));
+  }
+  .hook-item.show{transform:scale(1);}
+  .splash{
+    position:absolute;top:calc(55% - 14px);right:98px;
+    font-size:30px;opacity:0;pointer-events:none;
+  }
+  .splash.go{animation:splashy .7s ease-out;}
+  @keyframes splashy{0%{opacity:0;transform:translateY(6px) scale(.5)}40%{opacity:1;transform:translateY(-8px) scale(1.15)}100%{opacity:0;transform:translateY(-20px) scale(.9)}}
+
+  /* swimming background fish */
+  .bg-fish{position:absolute;font-size:22px;opacity:.55;animation:swim linear infinite;}
+  @keyframes swim{from{transform:translateX(-60px) scaleX(-1)}to{transform:translateX(540px) scaleX(-1)}}
+
+  .bubble-msg{
+    position:absolute;left:14px;top:calc(55% + 14px);
+    background:rgba(255,255,255,.92);
+    padding:8px 14px;border-radius:16px;border-bottom-left-radius:4px;
+    font-weight:600;font-size:15px;max-width:220px;
+    opacity:0;transform:translateY(8px);transition:.3s;
+  }
+  .bubble-msg.show{opacity:1;transform:translateY(0);}
+  .bubble-msg.good{color:#177a4b;}
+  .bubble-msg.bad{color:#c0402a;}
+
+  /* ===== PANEL ===== */
+  .panel{padding:18px 20px 22px;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-weight:600;font-size:14px;}
+  .bucket{background:#EAF6FD;border-radius:12px;padding:4px 12px;}
+  .progress-track{height:10px;background:#E3EEF5;border-radius:99px;overflow:hidden;margin-bottom:16px;}
+  .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--leaf),#7BE0A8);border-radius:99px;transition:width .4s;}
+
+  .question{
+    font-size:34px;font-weight:700;text-align:center;margin-bottom:16px;letter-spacing:1px;
+  }
+  .answers{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .ans{
+    font-family:inherit;font-size:22px;font-weight:600;color:var(--ink);
+    background:#F2F8FC;border:3px solid #D7E8F2;border-radius:16px;
+    padding:14px 0;cursor:pointer;transition:.15s;
+  }
+  .ans:hover{background:#E4F1FA;transform:translateY(-2px);}
+  .ans:disabled{cursor:default;transform:none;}
+  .ans.correct{background:#DFF7E8;border-color:var(--leaf);}
+  .ans.wrong{background:#FFE3DC;border-color:var(--coral);}
+
+  .btn{
+    display:block;width:100%;
+    font-family:inherit;font-size:20px;font-weight:700;color:#fff;
+    background:linear-gradient(180deg,var(--coral),#F05B3A);
+    border:none;border-radius:16px;padding:14px;cursor:pointer;
+    box-shadow:0 6px 0 #C74428;transition:.1s;
+  }
+  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #C74428;}
+
+  .screen{text-align:center;}
+  .screen h1{font-size:28px;margin-bottom:8px;}
+  .screen p{margin-bottom:18px;color:#4b6a7c;font-weight:500;}
+  .big-emoji{font-size:64px;margin-bottom:8px;}
+  .result-row{display:flex;justify-content:center;gap:24px;margin-bottom:18px;font-weight:600;font-size:18px;}
+  .result-row span{display:block;font-size:34px;}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+
+<div class="game">
+
+  <!-- ======= SCENE ======= -->
+  <div class="scene">
+    <div class="sun"></div>
+    <div class="cloud c1"></div>
+    <div class="cloud c2"></div>
+
+    <div class="bg-fish" style="top:68%;animation-duration:14s;">🐟</div>
+    <div class="bg-fish" style="top:82%;animation-duration:19s;animation-delay:-6s;">🐠</div>
+    <div class="bg-fish" style="top:74%;animation-duration:24s;animation-delay:-12s;">🐡</div>
+
+    <div class="waves">
+      <svg viewBox="0 0 200 20" preserveAspectRatio="none">
+        <path d="M0 10 Q 12.5 0 25 10 T 50 10 T 75 10 T 100 10 T 125 10 T 150 10 T 175 10 T 200 10 V 20 H 0 Z" fill="#1B7FB4"/>
+      </svg>
+    </div>
+
+    <!-- boat with fisherman -->
+    <svg class="boat" viewBox="0 0 150 90">
+      <!-- rod -->
+      <line x1="52" y1="52" x2="10" y2="8" stroke="#7a4a21" stroke-width="4" stroke-linecap="round"/>
+      <!-- fisherman -->
+      <circle cx="66" cy="34" r="10" fill="#FFC79E"/>
+      <path d="M54 30 Q66 16 78 30" fill="#F0B429"/>
+      <rect x="58" y="44" width="16" height="20" rx="6" fill="#E5533D"/>
+      <line x1="60" y1="50" x2="50" y2="54" stroke="#FFC79E" stroke-width="5" stroke-linecap="round"/>
+      <!-- boat hull -->
+      <path d="M28 64 H126 L112 84 H44 Z" fill="#8B5A2B"/>
+      <path d="M28 64 H126 L122 70 H32 Z" fill="#A9713B"/>
+    </svg>
+
+    <div class="line-wrap">
+      <div class="line" id="line"></div>
+      <div class="hook-item" id="hookItem">🐟</div>
+    </div>
+    <div class="splash" id="splash">💦</div>
+
+    <div class="bubble-msg" id="bubbleMsg"></div>
+  </div>
+
+  <!-- ======= PANEL ======= -->
+  <div class="panel">
+
+    <!-- start screen -->
+    <div class="screen" id="startScreen">
+      <div class="big-emoji">🎣</div>
+      <h1>Mancing Mania Matematika</h1>
+      <p>Jawab soal dengan benar untuk dapat ikan!<br>Kalau salah… siap-siap dapat sepatu bot atau tong kosong 😅</p>
+      <button class="btn" onclick="startGame()">Mulai Mancing!</button>
+    </div>
+
+    <!-- quiz screen -->
+    <div class="hidden" id="quizScreen">
+      <div class="topbar">
+        <div id="soalKe">Soal 1 / 10</div>
+        <div class="bucket">🪣 Ikan: <span id="score">0</span></div>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="question" id="questionText">1 + 1 = ?</div>
+      <div class="answers" id="answers"></div>
+    </div>
+
+    <!-- end screen -->
+    <div class="screen hidden" id="endScreen">
+      <div class="big-emoji" id="endEmoji">🏆</div>
+      <h1 id="endTitle">Mancing Selesai!</h1>
+      <div class="result-row">
+        <div><span>🐟</span> Ikan: <b id="finalFish">0</b></div>
+        <div><span>🥾</span> Sampah: <b id="finalTrash">0</b></div>
+      </div>
+      <p id="endMsg"></p>
+      <button class="btn" onclick="startGame()">Mancing Lagi 🎣</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ===== 10 soal sederhana (level SD - SMP) =====
+const SOAL = [
+  { q: "3 + 5 = ?",        a: 8,   opts: [8, 7, 9, 6] },
+  { q: "12 - 4 = ?",       a: 8,   opts: [8, 6, 9, 7] },
+  { q: "6 × 3 = ?",        a: 18,  opts: [18, 15, 21, 12] },
+  { q: "20 ÷ 4 = ?",       a: 5,   opts: [5, 4, 6, 10] },
+  { q: "7 + 8 = ?",        a: 15,  opts: [15, 14, 16, 13] },
+  { q: "9 × 4 = ?",        a: 36,  opts: [36, 32, 34, 38] },
+  { q: "45 ÷ 5 = ?",       a: 9,   opts: [9, 8, 7, 6] },
+  { q: "25 - 13 = ?",      a: 12,  opts: [12, 11, 13, 14] },
+  { q: "15 + 27 = ?",      a: 42,  opts: [42, 41, 43, 40] },
+  { q: "8 × 7 = ?",        a: 56,  opts: [56, 54, 58, 48] },
+];
+
+const IKAN   = ["🐟","🐠","🐡","🦈","🦑","🦐","🦀"];
+const SAMPAH = ["🥾","🗑️","👢","🛢️","👟"];
+const PESAN_BENAR = ["Mantap! Dapat ikan! 🎉","Wih, strike! 🐟","Jago banget! 👍","Umpannya jitu! ✨"];
+const PESAN_SALAH = ["Yah… dapat sampah 😅","Hmm, itu bukan ikan… 🥴","Sepatu siapa nih? 😂","Coba lagi, pasti bisa!"];
+
+let idx = 0, score = 0, trash = 0, locked = false;
+
+const $ = id => document.getElementById(id);
+
+function startGame(){
+  idx = 0; score = 0; trash = 0;
+  $("startScreen").classList.add("hidden");
+  $("endScreen").classList.add("hidden");
+  $("quizScreen").classList.remove("hidden");
+  $("score").textContent = 0;
+  resetLine();
+  showQuestion();
+}
+
+function showQuestion(){
+  locked = false;
+  const s = SOAL[idx];
+  $("soalKe").textContent = `Soal ${idx+1} / ${SOAL.length}`;
+  $("progressFill").style.width = (idx / SOAL.length * 100) + "%";
+  $("questionText").textContent = s.q;
+
+  // acak urutan opsi
+  const opts = [...s.opts].sort(() => Math.random() - .5);
+  const box = $("answers");
+  box.innerHTML = "";
+  opts.forEach(o => {
+    const b = document.createElement("button");
+    b.className = "ans";
+    b.textContent = o;
+    b.onclick = () => pilih(b, o, s.a);
+    box.appendChild(b);
+  });
+}
+
+function pilih(btn, val, benar){
+  if (locked) return;
+  locked = true;
+  const isCorrect = val === benar;
+
+  // warnai jawaban
+  [...$("answers").children].forEach(b => {
+    b.disabled = true;
+    if (+b.textContent === benar) b.classList.add("correct");
+  });
+  if (!isCorrect) btn.classList.add("wrong");
+
+  animasiMancing(isCorrect);
+}
+
+function animasiMancing(isCorrect){
+  const line = $("line");
+  const item = $("hookItem");
+  const splash = $("splash");
+  const msg = $("bubbleMsg");
+
+  item.classList.remove("show");
+  msg.classList.remove("show","good","bad");
+
+  // 1. kail turun ke air
+  line.style.height = "150px";
+
+  setTimeout(() => {
+    // 2. cipratan + tentukan hasil
+    splash.classList.remove("go"); void splash.offsetWidth;
+    splash.classList.add("go");
+
+    const pool = isCorrect ? IKAN : SAMPAH;
+    item.textContent = pool[Math.floor(Math.random() * pool.length)];
+    item.classList.add("show");
+
+    if (isCorrect){ score++; $("score").textContent = score; }
+    else trash++;
+
+    const teks = isCorrect ? PESAN_BENAR : PESAN_SALAH;
+    msg.textContent = teks[Math.floor(Math.random() * teks.length)];
+    msg.classList.add("show", isCorrect ? "good" : "bad");
+
+    // 3. tarik pancing ke atas
+    setTimeout(() => { line.style.height = "0px"; }, 500);
+
+    // 4. lanjut soal berikutnya
+    setTimeout(() => {
+      msg.classList.remove("show");
+      item.classList.remove("show");
+      idx++;
+      if (idx < SOAL.length) showQuestion();
+      else selesai();
+    }, 2100);
+  }, 1000);
+}
+
+function resetLine(){
+  $("line").style.height = "0px";
+  $("hookItem").classList.remove("show");
+  $("bubbleMsg").classList.remove("show");
+}
+
+function selesai(){
+  $("quizScreen").classList.add("hidden");
+  $("endScreen").classList.remove("hidden");
+  $("progressFill").style.width = "100%";
+  $("finalFish").textContent = score;
+  $("finalTrash").textContent = trash;
+
+  let emoji, title, pesan;
+  if (score === 10){ emoji="🏆"; title="Pemancing Legendaris!"; pesan="Sempurna! Semua umpan kena ikan! 🌟"; }
+  else if (score >= 7){ emoji="🎉"; title="Pemancing Handal!"; pesan="Keren! Ember kamu hampir penuh ikan!"; }
+  else if (score >= 4){ emoji="😊"; title="Lumayan Nih!"; pesan="Tidak buruk! Latihan lagi biar makin banyak ikannya."; }
+  else { emoji="😅"; title="Banyak Sampahnya…"; pesan="Semangat! Yang penting lautnya jadi bersih, kan? 😄"; }
+
+  $("endEmoji").textContent = emoji;
+  $("endTitle").textContent = title;
+  $("endMsg").textContent = pesan;
+}
+</script>
+</body>
+</html>

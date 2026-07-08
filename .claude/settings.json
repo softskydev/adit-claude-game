@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('driving-parkir-new.html','utf8'\\).match\\(/<script>\\([\\\\s\\\\S]*\\)<\\\\/script>/\\)[1]\\)\")",
+      "Bash(grep -E \"^\\(background-images-2|car|correct_answer|wrong_answer|question-sign|question_sign|a_sign|b_sign|c_sign|d_sign\\)\\\\.png$\" -i)"
+    ]
+  }
+}

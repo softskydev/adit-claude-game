@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parkir Mundur Pintar — Kuis Aturan Lalu Lintas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal:#1f6f60;
+    --teal-dark:#134940;
+    --cream:#fdf6e8;
+    --ink:#16211e;
+    --muted:#5b6b66;
+    --amber:#ffb703;
+    --amber-dark:#c98600;
+    --green:#2ecc71;
+    --green-dark:#1f9d57;
+    --red:#e63946;
+    --red-dark:#b3222d;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:'Nunito',sans-serif;
+    background:#0c1917;
+    color:var(--ink);
+    height:100vh;
+    width:100vw;
+    overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  h1,h2,h3,.btn{font-family:'Baloo 2',cursive}
+
+  /* ===== STAGE (fills viewport, letterboxed to the image's own ratio) ===== */
+  .stage-root{
+    position:relative;
+    width:min(100vw, calc(100vh * 4096 / 2304));
+    aspect-ratio:4096/2304;
+  }
+
+  /* ===== HUD (floating, no card/box chrome) ===== */
+  .hud{
+    position:absolute;z-index:10;
+    background:rgba(12,25,23,.55);
+    color:#fff;
+    border-radius:999px;
+    backdrop-filter:blur(3px);
+  }
+  .hud-title{
+    display:none;
+    top:2.5%;left:2%;
+    padding:1.1% 2.2%;
+    font-weight:800;
+    font-size:clamp(11px,1.7vw,17px);
+    align-items:center;gap:.5em;
+    white-space:nowrap;
+  }
+  .hud-stats{display:none;top:2.5%;right:2%;gap:.6%;background:none}
+  .hud-chip{
+    background:rgba(12,25,23,.55);
+    padding:1.1% 2%;
+    text-align:center;
+    min-width:3.6em;
+  }
+  .hud-chip small{display:block;font-size:.55em;letter-spacing:.1em;text-transform:uppercase;font-weight:700;opacity:.8}
+  .hud-chip b{font-size:clamp(11px,1.6vw,16px)}
+
+  /* ===== CANVAS (background-images-2.png — clean scene, no baked-in signs) ===== */
+  .canvas{
+    position:absolute;inset:0;
+    background:url('car-driving-assets/background-images-2.png') no-repeat center / 100% 100%;
+    overflow:hidden;
+  }
+
+  /* Dedicated sign art (newassets/question_sign.png / a_b_c_d_sign.png) with a
+     text overlay sized in cqw units so font-size tracks the sign's own box
+     width, not the viewport — the earlier vw-based sizing broke down once the
+     canvas was letterboxed smaller than the viewport. */
+  .qBox, .ansBox{
+    position:absolute;
+    container-type:inline-size;
+  }
+  .qBox img, .ansBox img{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    display:block;
+    pointer-events:none;
+  }
+  .qBox .txt, .ansBox .txt{
+    position:absolute;
+    display:flex;align-items:center;justify-content:center;
+    text-align:center;
+    color:var(--cream);
+    font-weight:800;
+    overflow:hidden;
+  }
+
+  .qBox{
+    left:0%;top:6%;width:100%;
+    aspect-ratio:4082/556;
+  }
+  .qBox .txt{
+    inset:16% 9%;
+    font-size:clamp(9px,3.6cqw,20px);
+    line-height:1.25;
+  }
+
+  .ansBox{
+    top:27.5%;
+    aspect-ratio:688/404;
+    width:19%;
+    cursor:pointer;
+    transition:filter .15s;
+    border-radius:6px;
+  }
+  .ansBox .txt{
+    top:34%;bottom:8%;left:24%;right:5%;
+    text-align:left;justify-content:flex-start;
+    white-space:normal;word-break:break-word;
+    font-size:clamp(7px,3.6cqw,15px);
+    line-height:1.15;
+  }
+  .ansBox:hover:not(.disabled){filter:brightness(1.15)}
+  .ansBox[data-pos="0"]{left:7%}
+  .ansBox[data-pos="1"]{left:30%}
+  .ansBox[data-pos="2"]{left:52%}
+  .ansBox[data-pos="3"]{left:74%}
+
+  .ansBox.disabled{cursor:default}
+  .ansBox.correct{filter:brightness(1.1)}
+  .ansBox.wrong{filter:brightness(.9)}
+
+  /* ===== CAR ===== */
+  #playerCar{
+    position:absolute;
+    width:18%;
+    aspect-ratio:342/121;
+    left:50%;top:57%;
+    transform:translate(-50%,-50%) rotate(0deg);
+    transition:left 1s cubic-bezier(.4,0,.2,1), top 1s cubic-bezier(.4,0,.2,1), transform 1s cubic-bezier(.4,0,.2,1);
+    filter:drop-shadow(0 5px 6px rgba(0,0,0,.4));
+    z-index:5;
+    pointer-events:none;
+  }
+  .canvas.shake{animation:sceneShake .5s}
+  @keyframes sceneShake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-5px)}
+    40%{transform:translateX(4px)}
+    60%{transform:translateX(-3px)}
+    80%{transform:translateX(2px)}
+  }
+  .impact{position:absolute;font-size:8vw;pointer-events:none;animation:impactPop .6s ease-out forwards;z-index:6;transform:translate(-50%,-50%)}
+  @keyframes impactPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(0)}
+    30%{opacity:1;transform:translate(-50%,-50%) scale(1.2) rotate(15deg)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.5) rotate(25deg) translateY(6px)}
+  }
+  .badge-ok{position:absolute;font-size:6vw;pointer-events:none;animation:twinkle .9s ease-in-out infinite;z-index:6;transform:translate(-50%,-50%)}
+  @keyframes twinkle{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(.85)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}}
+
+  /* ===== POPUP ===== */
+  .popup-overlay{
+    position:absolute;inset:0;background:rgba(15,20,28,.55);
+    display:none;align-items:center;justify-content:center;padding:4%;z-index:20;
+  }
+  .popup-overlay.show{display:flex;animation:pop .3s ease}
+  @keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+  .popup-card{
+    text-align:center;
+    max-width:340px;width:100%;
+    display:flex;flex-direction:column;align-items:center;gap:16px;
+  }
+  .result-box{
+    position:relative;width:100%;display:none;
+    container-type:inline-size;
+  }
+  .result-box.show{display:block}
+  .result-box img{width:100%;height:100%;display:block}
+  .result-box .txt{
+    position:absolute;
+    display:flex;align-items:center;justify-content:center;
+    text-align:center;color:#fff;font-weight:800;
+    text-shadow:0 2px 5px rgba(0,0,0,.35);
+    line-height:1.15;
+  }
+  .result-correct, .result-wrong{aspect-ratio:804/432}
+  .result-correct .txt{inset:46% 12% 8% 12%;font-size:clamp(13px,7.5cqw,26px)}
+  /* .result-wrong{aspect-ratio:1250/960} */
+  .result-wrong .txt{inset:46% 12% 8% 12%;font-size:clamp(13px,7.5cqw,26px)}
+
+  .btn{
+    border:none;cursor:pointer;
+    background:var(--amber);
+    color:var(--ink);
+    font-size:clamp(12px,3vw,16px);font-weight:800;
+    padding:11px 26px;
+    border-radius:14px;
+    border-bottom:5px solid var(--amber-dark);
+    transition:transform .1s, border-bottom-width .1s;
+    width:100%;
+  }
+  .btn:hover{transform:translateY(1px)}
+  .btn:active{transform:translateY(4px);border-bottom-width:1px}
+  .btn:focus-visible{outline:3px dashed var(--teal);outline-offset:3px}
+  .btn-green{background:var(--green);color:#fff;border-bottom-color:var(--green-dark)}
+
+  /* ===== FINAL ===== */
+  .final-overlay{
+    position:absolute;inset:0;z-index:30;
+    display:none;align-items:center;justify-content:center;
+    background:rgba(8,15,13,.72);
+    padding:4%;
+  }
+  .final-overlay.show{display:none}
+  .final-card{
+    background:#fff;color:var(--ink);border-radius:16px;
+    padding:4% 5%;text-align:center;max-width:440px;width:100%;
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .final-card .big{font-size:clamp(40px,8vw,64px)}
+  .final-card h2{font-size:clamp(18px,4vw,26px);color:var(--teal-dark)}
+  .stars{font-size:clamp(18px,3.6vw,28px);letter-spacing:5px}
+  .final-stats{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .stat{background:#fff;border:3px solid var(--teal-dark);border-radius:14px;padding:6px 16px;font-weight:800}
+  .stat small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .stat b{font-size:clamp(15px,3vw,20px)}
+  .final-card p.msg{font-weight:700;color:var(--muted);max-width:46ch;font-size:clamp(11px,2.4vw,14px)}
+  .final-card .btn{max-width:220px}
+
+  /* ===== LANDSCAPE / DESKTOP ONLY ===== */
+  .rotate-hint{
+    display:none;
+    position:fixed;inset:0;z-index:999;
+    background:#0c1917;color:#fff;
+    flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    text-align:center;padding:8vw;
+  }
+  .rotate-hint .ico{font-size:15vw;animation:spin 1.8s ease-in-out infinite}
+  @keyframes spin{0%,100%{transform:rotate(0)}50%{transform:rotate(-90deg)}}
+  .rotate-hint p{font-weight:700;font-size:clamp(14px,4vw,18px);max-width:32ch}
+
+  @media (orientation:portrait){
+    .rotate-hint{display:flex}
+    .stage-root{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+
+  /* ===== FULLSCREEN TOGGLE ===== */
+  .fs-btn{
+    position:fixed;z-index:1000;
+    bottom:16px;right:16px;
+    width:44px;height:44px;
+    border:none;border-radius:50%;
+    background:rgba(12,25,23,.55);
+    color:#fff;
+    font-size:20px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    backdrop-filter:blur(3px);
+    transition:transform .2s ease, background .2s ease;
+  }
+  .fs-btn:hover{background:rgba(12,25,23,.8)}
+  .fs-btn.is-fullscreen{transform:rotate(45deg)}
+</style>
+</head>
+<body>
+
+<button class="fs-btn" id="fsBtn" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+
+<div class="rotate-hint">
+  <div class="ico">🔄</div>
+  <p>Putar perangkat ke mode landscape atau buka di layar desktop untuk bermain.</p>
+</div>
+
+<div class="stage-root">
+  <div class="canvas" id="canvas">
+
+    <div class="hud hud-title">🚗 Parkir Mundur Pintar</div>
+    <div class="hud hud-stats">
+      <div class="hud-chip"><small>Soal</small><b id="progressText">1/10</b></div>
+      <div class="hud-chip"><small>Skor</small><b id="gameScore">0</b></div>
+    </div>
+
+    <div class="qBox">
+      <img src="car-driving-assets/question_sign.png" alt="">
+      <div class="txt" id="questionText">Pertanyaan…</div>
+    </div>
+
+    <div class="ansBox" data-pos="0" id="ans0">
+      <img src="car-driving-assets/a_sign.png" alt="Jawaban A">
+      <div class="txt"></div>
+    </div>
+    <div class="ansBox" data-pos="1" id="ans1">
+      <img src="car-driving-assets/b_sign.png" alt="Jawaban B">
+      <div class="txt"></div>
+    </div>
+    <div class="ansBox" data-pos="2" id="ans2">
+      <img src="car-driving-assets/c_sign.png" alt="Jawaban C">
+      <div class="txt"></div>
+    </div>
+    <div class="ansBox" data-pos="3" id="ans3">
+      <img src="car-driving-assets/d_sign.png" alt="Jawaban D">
+      <div class="txt"></div>
+    </div>
+
+    <img id="playerCar" src="car-driving-assets/car.png" alt="Mobil pemain">
+
+    <div class="popup-overlay" id="popupOverlay">
+      <div class="popup-card">
+        <div class="result-box result-correct" id="resultCorrect">
+          <img src="car-driving-assets/correct_answer.png" alt="Jawaban Benar">
+          <div class="txt">JAWABAN BENAR!</div>
+        </div>
+        <div class="result-box result-wrong" id="resultWrong">
+          <img src="car-driving-assets/wrong_answer.png" alt="Jawaban Salah">
+          <div class="txt">JAWABAN SALAH!</div>
+        </div>
+        <button class="btn btn-green" id="popupBtn" onclick="nextQuestion()">Lanjut ➜</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="final-overlay" id="screenFinal">
+    <div class="final-card">
+      <div class="big" id="finalEmoji">🏆</div>
+      <h2 id="finalTitle">Master Parkir Sejati!</h2>
+      <div class="stars" id="finalStars">⭐⭐⭐</div>
+      <div class="final-stats">
+        <div class="stat"><small>Parkir Sukses</small><b id="statParked">0</b></div>
+        <div class="stat"><small>Nabrak</small><b id="statCrashed">0</b></div>
+        <div class="stat"><small>Skor Akhir</small><b id="statScore">0</b></div>
+      </div>
+      <p class="msg" id="finalMsg"></p>
+      <button class="btn btn-green" onclick="restart()">🔄 Main Lagi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================== DATA ================== */
+const QUESTIONS = [
+  {
+    q: 'Rambu lingkaran biru dengan huruf "P" dicoret garis merah artinya?',
+    a: ["Dilarang berhenti", "Dilarang parkir", "Wajib parkir", "Parkir gratis"],
+    correct: 1,
+    explain: 'Rambu "P" dicoret merah adalah larangan parkir — kendaraan tidak boleh berhenti dalam waktu lama di area tersebut.'
+  },
+  {
+    q: "Sebelum bermanuver untuk parkir, sebaiknya kamu terlebih dahulu?",
+    a: ["Langsung banting setir", "Menyalakan lampu sein dan memastikan area sekitar aman", "Membunyikan klakson panjang", "Mempercepat laju kendaraan"],
+    correct: 1,
+    explain: "Nyalakan sein dan pastikan sekitar aman sebelum bermanuver agar pengendara lain tahu dan tidak terjadi tabrakan."
+  },
+  {
+    q: "Bolehkah parkir tepat di depan pintu masuk gedung atau jalur pemadam kebakaran?",
+    a: ["Boleh asal sebentar", "Boleh jika tidak ada yang melihat", "Tidak boleh, karena menghalangi akses darurat", "Boleh jika membayar tukang parkir"],
+    correct: 2,
+    explain: "Area di depan akses darurat/hydrant harus selalu bebas hambatan untuk kendaraan pemadam kebakaran atau ambulans."
+  },
+  {
+    q: "Garis kuning zig-zag di pinggir jalan menandakan?",
+    a: ["Tempat parkir favorit", "Dilarang berhenti maupun parkir di area tersebut", "Batas kecepatan", "Jalur sepeda"],
+    correct: 1,
+    explain: "Garis kuning zig-zag biasanya menandai larangan berhenti karena dekat pintu keluar-masuk seperti gerbang sekolah atau kantor."
+  },
+  {
+    q: 'Rambu lingkaran biru dengan huruf "S" dicoret merah artinya?',
+    a: ["Dilarang parkir tapi boleh berhenti sebentar", "Dilarang berhenti sama sekali, termasuk menurunkan penumpang", "Wajib berhenti", "Batas kecepatan minimum"],
+    correct: 1,
+    explain: '"S" dicoret berarti dilarang berhenti sama sekali (No Stopping), berbeda dengan "P" dicoret yang masih boleh berhenti sebentar untuk menurunkan penumpang.'
+  },
+  {
+    q: "Ketika parkir di tanjakan, agar mobil tidak meluncur sebaiknya?",
+    a: ["Posisi gigi netral tanpa rem tangan", "Gunakan rem tangan dan masukkan gigi rendah", "Ganjal ban dengan batu saja tanpa rem tangan", "Matikan mesin dalam posisi gigi netral"],
+    correct: 1,
+    explain: "Kombinasi rem tangan aktif dan gigi rendah (atau posisi P pada matic) mencegah mobil meluncur saat diparkir di tanjakan atau turunan."
+  },
+  {
+    q: "Slot parkir khusus disabilitas sedang kosong padahal parkiran penuh, dan mobilmu tidak membawa penumpang disabilitas. Sebaiknya?",
+    a: ["Parkir saja karena kosong", "Tetap mencari slot lain karena itu hak prioritas penyandang disabilitas", "Parkir lalu pindah kalau ada yang komplain", "Meminta orang lain berpura-pura disabilitas"],
+    correct: 1,
+    explain: "Slot disabilitas adalah fasilitas prioritas yang dilindungi aturan; gunakan hanya jika berhak agar tidak menghalangi yang membutuhkan."
+  },
+  {
+    q: "Saat parkir mundur (parkir paralel), cara paling aman adalah?",
+    a: ["Hanya mengandalkan spion tanpa menoleh", "Menoleh langsung ke belakang, gunakan spion, dan kamera/sensor jika ada", "Menutup mata karena sudah hafal", "Meminta orang lain menyetir dari kursi belakang"],
+    correct: 1,
+    explain: "Kombinasi menoleh langsung, spion, dan sensor/kamera parkir memberi pandangan penuh terhadap objek sekitar agar parkir aman."
+  },
+  {
+    q: "Jika area parkir penuh, tindakan yang benar adalah?",
+    a: ["Parkir di bahu jalan sembarangan hingga menghalangi lalu lintas", "Mencari area parkir resmi lain atau menunggu slot kosong", "Menaikkan roda ke trotoar pejalan kaki", "Meminta petugas mengusir mobil lain agar dapat tempat"],
+    correct: 1,
+    explain: "Trotoar adalah hak pejalan kaki dan bahu jalan sembarangan mengganggu lalu lintas — carilah tempat parkir resmi lain atau tunggu slot kosong."
+  },
+  {
+    q: "Setelah mobil terparkir dengan benar, langkah terakhir yang wajib dilakukan adalah?",
+    a: ["Meninggalkan mobil dalam keadaan menyala", "Memastikan rem tangan aktif, gigi pada posisi aman, dan mengunci mobil", "Membuka semua jendela lebar-lebar", "Meninggalkan kunci di dalam mobil"],
+    correct: 1,
+    explain: "Rem tangan/gigi parkir aktif mencegah mobil bergerak, dan mengunci mobil menjaga keamanan kendaraan serta barang di dalamnya."
+  }
+];
+
+/* Bay column centers (%) matching the 4 empty middle parking spots in background-images-2.png */
+const BAY_X = [38.7, 46.0, 53.3, 60.6];
+const PARK_Y = 76;   /* car center once neatly parked */
+const CRASH_Y = 85;  /* curb/sidewalk behind the bays */
+const START_X = 50, START_Y = 54;
+
+/* ================== STATE ================== */
+let order = 0, score = 0, parked = 0, crashed = 0;
+let shuffledQ = [];
+
+/* ================== HELPERS ================== */
+const $ = id => document.getElementById(id);
+function shuffle(arr){
+  const a = [...arr];
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ================== FLOW ================== */
+function init(){
+  shuffledQ = shuffle(QUESTIONS);
+  order = 0; score = 0; parked = 0; crashed = 0;
+  $('gameScore').textContent = 0;
+  $('screenFinal').classList.remove('show');
+  showQuestion();
+}
+
+function resetCar(){
+  const car = $('playerCar');
+  car.style.transition = 'none';
+  car.style.left = START_X + '%';
+  car.style.top = START_Y + '%';
+  car.style.transform = 'translate(-50%,-50%) rotate(0deg)';
+  void car.offsetWidth;
+  car.style.transition = '';
+  document.querySelectorAll('#canvas .impact, #canvas .badge-ok').forEach(e => e.remove());
+  $('canvas').classList.remove('shake');
+}
+
+function showQuestion(){
+  const q = shuffledQ[order];
+  $('progressText').textContent = `${order + 1}/${shuffledQ.length}`;
+
+  resetCar();
+
+  $('questionText').textContent = q.q;
+
+  const idxOrder = shuffle([0,1,2,3]);
+  idxOrder.forEach((ai, pos) => {
+    const el = $('ans' + pos);
+    el.querySelector('.txt').textContent = q.a[ai];
+    el.classList.remove('correct','wrong','disabled');
+    el.onclick = () => handleAnswer(pos, ai === q.correct, q);
+  });
+}
+
+function handleAnswer(pos, isCorrect, q){
+  const q_correctText = q.a[q.correct];
+  document.querySelectorAll('.ansBox').forEach(el => {
+    el.classList.add('disabled');
+    el.onclick = null;
+    if(el.querySelector('.txt').textContent.trim() === q_correctText.trim()) el.classList.add('correct');
+  });
+  if(!isCorrect) $('ans' + pos).classList.add('wrong');
+
+  const car = $('playerCar');
+  const targetX = BAY_X[pos];
+
+  if(isCorrect){
+    car.style.left = targetX + '%';
+    car.style.top = PARK_Y + '%';
+    car.style.transform = `translate(-50%,-50%) rotate(90deg)`;
+    setTimeout(() => showBadge(targetX, PARK_Y), 1050);
+  } else {
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    car.style.left = targetX + '%';
+    car.style.top = CRASH_Y + '%';
+    car.style.transform = `translate(-50%,-50%) rotate(${90 + dir * 18}deg)`;
+    setTimeout(() => {
+      $('canvas').classList.add('shake');
+      showImpact(targetX, CRASH_Y);
+    }, 1000);
+  }
+
+  setTimeout(() => showPopup(isCorrect, q), 1300);
+}
+
+function showBadge(xPct, yPct){
+  const badge = document.createElement('span');
+  badge.className = 'badge-ok';
+  badge.textContent = '✅';
+  badge.style.left = xPct + '%';
+  badge.style.top = (yPct - 14) + '%';
+  // $('canvas').appendChild(badge);
+}
+
+function showImpact(xPct, yPct){
+  const impact = document.createElement('span');
+  impact.className = 'impact';
+  impact.textContent = '💥';
+  impact.style.left = xPct + '%';
+  impact.style.top = (yPct - 6) + '%';
+  $('canvas').appendChild(impact);
+}
+
+function showPopup(isCorrect, q){
+  if(isCorrect){ score += 100; parked++; } else { crashed++; }
+  $('gameScore').textContent = score;
+
+  $('resultCorrect').classList.toggle('show', isCorrect);
+  $('resultWrong').classList.toggle('show', !isCorrect);
+  $('popupBtn').textContent = (order + 1 >= shuffledQ.length) ? 'Lihat Hasil Akhir 🏁' : 'Lanjut ➜';
+
+  $('popupOverlay').classList.add('show');
+}
+
+function nextQuestion(){
+  $('popupOverlay').classList.remove('show');
+  order++;
+  if(order >= shuffledQ.length){ finish(); } else { showQuestion(); }
+}
+
+function finish(){
+  const final = $('screenFinal');
+  final.classList.add('show');
+
+  $('statParked').textContent = parked;
+  $('statCrashed').textContent = crashed;
+  $('statScore').textContent = score;
+
+  const ratio = parked / shuffledQ.length;
+  let emoji, title, stars, msg;
+  if(ratio === 1){
+    emoji = '🏆'; title = 'Master Parkir Sejati!'; stars = '⭐⭐⭐⭐⭐';
+    msg = 'Sempurna! Semua parkir mulus tanpa menabrak apapun. Kamu benar-benar paham aturan berkendara!';
+  } else if(ratio >= .75){
+    emoji = '🚗'; title = 'Pengemudi Andal!'; stars = '⭐⭐⭐⭐';
+    msg = 'Kerja bagus! Hampir semua parkir sukses. Sedikit lagi menuju Master Parkir!';
+  } else if(ratio >= .5){
+    emoji = '🅿️'; title = 'Pengemudi Pemula'; stars = '⭐⭐⭐';
+    msg = 'Lumayan, tapi masih beberapa kali menabrak trotoar. Yuk pelajari lagi rambu & etika parkirnya!';
+  } else {
+    emoji = '🚧'; title = 'Waduh, Banyak Nabrak!'; stars = '⭐';
+    msg = 'Banyak parkir gagal! Jangan menyerah, pelajari lagi aturan lalu lintas dan coba lagi ya!';
+  }
+  $('finalEmoji').textContent = emoji;
+  $('finalTitle').textContent = title;
+  $('finalStars').textContent = stars;
+  $('finalMsg').textContent = msg;
+}
+
+function restart(){
+  init();
+}
+
+/* ================== FULLSCREEN TOGGLE ================== */
+function isFullscreen(){
+  return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+            document.mozFullScreenElement || document.msFullscreenElement);
+}
+function toggleFullscreen(){
+  if(!isFullscreen()){
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen ||
+                el.mozRequestFullScreen || el.msRequestFullscreen;
+    if(req) req.call(el);
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen ||
+                 document.mozCancelFullScreen || document.msExitFullscreen;
+    if(exit) exit.call(document);
+  }
+}
+function updateFsBtn(){
+  const btn = $('fsBtn');
+  const fs = isFullscreen();
+  btn.classList.toggle('is-fullscreen', fs);
+  btn.title = fs ? 'Keluar Fullscreen' : 'Fullscreen';
+  btn.setAttribute('aria-label', btn.title);
+}
+(function initFullscreenBtn(){
+  const btn = $('fsBtn');
+  const el = document.documentElement;
+  const supported = !!(el.requestFullscreen || el.webkitRequestFullscreen ||
+                        el.mozRequestFullScreen || el.msRequestFullscreen);
+  if(!supported){ btn.style.display = 'none'; return; }
+  btn.addEventListener('click', toggleFullscreen);
+  ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange']
+    .forEach(evt => document.addEventListener(evt, updateFsBtn));
+})();
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
